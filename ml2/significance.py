@@ -40,9 +40,12 @@ def main():
     fwd = ds.fwd[S.HORIZON]
     rows = []
     for model in MODELS:
-        for tag, (a, b) in (("dev", S.DEV_YEARS), ("final", S.FINAL_YEARS)):
+        for tag, (a, b) in (("dev", S.DEV_YEARS), ("final", S.FINAL_YEARS), ("pristine", S.FINAL_YEARS)):
             years = list(range(a, b + 1))
-            preds = explore.preds_for(ds, best, model, years, tag)
+            preds = explore.preds_for(ds, best, model, years, "final" if tag == "pristine" else tag)
+            if tag == "pristine":  # only the days no earlier analysis saw
+                years = [b]
+                preds = {b: preds[b].loc[S.PRISTINE_FROM:]}
             ls, lo = pooled(preds, years, ds, "ls"), pooled(preds, years, ds, "long")
             mom_ls = pooled(factor_preds(ds, years)["factor_momentum_12_1"], years, ds, "ls")
             ew = evaluate.equal_weight_universe(lo.index, ds.close)["net_returns"]
