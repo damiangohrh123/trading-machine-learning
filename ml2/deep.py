@@ -1,5 +1,6 @@
 """GPU neural nets: an MLP on the features, optionally with a sequence encoder over recent price action."""
 import copy
+import time
 
 import numpy as np
 import torch
@@ -9,6 +10,10 @@ from ml2 import settings as S
 
 DEV = "cuda"
 CHUNK = 65536  # prediction batch size
+
+
+class TrialTimeout(Exception):
+    """Raised when a training run passes its deadline, so heavy configs cannot stall a search."""
 
 
 class Encoder(nn.Module):
@@ -103,6 +108,8 @@ def fit_predict(params: dict, Xtr, ytr, Xte, ctx: dict, arch: str) -> np.ndarray
     for _ in range(params["epochs"]):
         net.train()
         for idx in torch.randperm(n_fit, device=DEV).split(params["batch"]):
+            if ctx["deadline"] and time.time() > ctx["deadline"]:
+                raise TrialTimeout
             opt.zero_grad()
             loss_fn(forward(xtr[idx], tr[idx]), ytr_t[idx]).backward()
             opt.step()

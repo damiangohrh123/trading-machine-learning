@@ -15,7 +15,7 @@ import optuna
 import pandas as pd
 import torch
 
-from ml2 import dataset, evaluate, models, settings as S
+from ml2 import dataset, deep, evaluate, models, settings as S
 from ml2.features import GROUPS
 from ml2.walkforward import fold_preds
 
@@ -25,6 +25,7 @@ DB = f"sqlite:///{(S.RESULTS / 'search.db').as_posix()}"
 STUDY = "v2_search"
 LOG = S.RESULTS / "search.csv"
 MODEL_NAMES = ["xgb", "lgbm", "xgb_rank", "mlp", "gru", "tcn", "transformer"]
+MAX_TRIAL_SECS = 600  # a trial past this budget is pruned, so heavy configs cannot stall the search
 
 
 def _net_params(trial, sequence: bool) -> dict:
@@ -95,20 +96,27 @@ def run(hours: float) -> None:
         cfg = sample_cfg(trial)
         trial.set_user_attr("cfg", cfg)
         ics = []
-        for step, (_, pred) in enumerate(fold_preds(ds, TUNE_YEARS, cfg)):
-            ics.append(float(evaluate.daily_ic(pred, fwd).mean()))
-            trial.report(sum(ics) / len(ics), step)  # running mean IC lets weak trials stop early
-            if trial.should_prune():
-                trial.set_user_attr("fold_ic", ics)
-                raise optuna.TrialPruned()
+        deadline = time.time() + MAX_TRIAL_SECS
+        try:
+            for step, (_, pred) in enumerate(fold_preds(ds, TUNE_YEARS, cfg, deadline)):
+                ics.append(float(evaluate.daily_ic(pred, fwd).mean()))
+                trial.report(sum(ics) / len(ics), step)  # running mean IC lets weak trials stop early
+                if trial.should_prune() or time.time() > deadline:
+                    raise optuna.TrialPruned()
+        except (optuna.TrialPruned, deep.TrialTimeout):
+            trial.set_user_attr("fold_ic", ics)
+            gc.collect()
+            torch.cuda.empty_cache()
+            raise optuna.TrialPruned()
         trial.set_user_attr("fold_ic", ics)
         gc.collect()
         torch.cuda.empty_cache()
         return sum(ics) / len(ics)
 
     study = optuna.create_study(study_name=STUDY, storage=DB, load_if_exists=True, direction="maximize",
-                                sampler=optuna.samplers.TPESampler(seed=S.SEED, n_startup_trials=30),
                                 pruner=optuna.pruners.MedianPruner(n_startup_trials=15, n_warmup_steps=1))
+    # seed by trial count so a restart does not replay the random draws of earlier runs
+    study.sampler = optuna.samplers.TPESampler(seed=S.SEED + len(study.trials), n_startup_trials=30)
     # out-of-memory and bad-hyperparameter errors fail the trial only; anything else stops the search
     study.optimize(objective, timeout=hours * 3600, callbacks=[log_trial],
                    catch=(torch.cuda.OutOfMemoryError, ValueError))
@@ -119,7 +127,8 @@ def finalists(n: int) -> None:
     ds = dataset.load()
     study = optuna.load_study(study_name=STUDY, storage=DB)
     done = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
-    top = sorted(done, key=lambda t: t.value, reverse=True)[:n]
+    unique = {json.dumps(t.user_attrs["cfg"], sort_keys=True): t for t in sorted(done, key=lambda t: t.value)}
+    top = sorted(unique.values(), key=lambda t: t.value, reverse=True)[:n]  # identical configs count once
     base = json.loads((S.RESULTS / "best_config.json").read_text())
     entries = [("baseline", base, None)] + [(f"trial_{t.number}", t.user_attrs["cfg"], t.value) for t in top]
     rows = []
