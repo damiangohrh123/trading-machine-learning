@@ -134,6 +134,28 @@ second look, not a clean test. Long-short Sharpe after costs (rank IC shown wher
 - **Smoothing cuts turnover** (66x to 33-49x) but also cuts rank IC, so net Sharpe does not improve on dev.
 - **The beta-adjusted target was worse** (dev rank IC 0.023 vs 0.032), and sector-neutral books did not help.
 
+### How much could be luck? (`ml2/significance.py`)
+
+95% block-bootstrap intervals (20-day blocks, 5000 resamples) for the ensemble with the base decile book:
+
+| Statistic | Dev 2013-21 | Final 2022-26 |
+|---|---|---|
+| Rank IC (mean per day) | 0.037 [0.022, 0.052] | 0.031 [0.015, 0.049] |
+| Long-short Sharpe | 0.78 [0.08, 1.49] | 0.41 [-0.23, 1.06] |
+| Long-only top decile Sharpe | 1.37 [0.66, 2.17] | 0.98 [0.23, 1.84] |
+| Long-short Sharpe minus momentum factor | 0.89 [0.06, 1.71] | -0.43 [-1.51, 0.66] |
+| Long-only minus equal-weight, annual return | +10.3% [3.8%, 18.1%] | +10.5% [2.6%, 18.4%] |
+
+- **The ranking signal is statistically real.** The rank IC interval excludes zero in both periods.
+- **The market-neutral strategy is uncertain.** The final-years long-short Sharpe interval includes zero, so
+  those 4.4 years cannot show that the strategy earns money after costs.
+- **The momentum comparison is open.** Momentum beat the ensemble on the final years, but the interval
+  (-1.51 to 0.66) is wide. On dev the ensemble led by 0.89.
+- **The long-only edge over the equal-weight universe is the most stable result**, positive in both periods.
+  It carries the survivorship bias described below, which these intervals do not measure.
+- **The intervals treat the model and portfolio as fixed.** They ignore the choices made while tuning, so the
+  true uncertainty is larger.
+
 ## Limitations
 
 - **Survivorship / selection bias:** AAPL and MSFT were picked with hindsight; ETFs limit but do not remove this.
