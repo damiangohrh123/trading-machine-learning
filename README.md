@@ -293,7 +293,12 @@ pip install -r requirements-v2.txt
 python -m ml2.data              # download ~520 tickers (several minutes)
 python -m ml2.dataset           # build and cache the feature table
 python -m ml2.loop              # improvement loop; resume with: python -m ml2.loop 11 then python -m ml2.loop 21 20
-python -m ml2.final             # dev metrics, one final-years run, equity chart
+python -m ml2.search run 10     # unattended GPU search for 10 hours (resumable); then: python -m ml2.search finalists 10
+python -m ml2.final             # dev, final and pristine-tail metrics, equity chart
+python -m ml2.significance      # bootstrap confidence intervals
+python -m ml2.costs             # cost sensitivity
+python -m ml2.forward predict   # log today's ranking for the forward test (see below)
+streamlit run app/streamlit_app.py   # v1 page, plus "2 v2 results" in the sidebar
 ```
 
 ## Ideas for next steps
