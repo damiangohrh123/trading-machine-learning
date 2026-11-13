@@ -96,6 +96,6 @@ def compute_wide(px: dict[str, pd.DataFrame], sector: pd.Series) -> tuple[dict, 
     spy_c = c["SPY"]
     f["spy_ret_5"], f["spy_ret_21"], f["spy_ret_63"] = (shared(spy_c.pct_change(n)) for n in (5, 21, 63))
     f["spy_vol_21"] = shared(spy.rolling(21).std())
-    f["dow"] = shared(pd.Series(c.index.dayofweek, index=c.index).astype("float32"))
+    f["dow"] = shared(pd.Series(c.index.day_of_week, index=c.index).astype("float32"))
     f["month"] = shared(pd.Series(c.index.month, index=c.index).astype("float32"))
     return {k: v_.astype("float32") for k, v_ in f.items()}, c
