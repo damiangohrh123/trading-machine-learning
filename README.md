@@ -70,8 +70,8 @@ against each other each day and a portfolio goes long the top decile and short t
   beta, sector-relative returns, VIX/SPY context, calendar) plus cross-sectional rank versions.
 - **Target:** cross-sectional rank of the 5-day forward return, so market-wide drift cancels out.
 - **Models:** ridge, XGBoost (GPU), LightGBM, a PyTorch MLP (GPU), a GRU over recent days of price
-  action plus the MLP (GPU), and an ensemble that averages their cross-sectional ranks. The GRU uses the
-  config found by the overnight search below; every other model uses the improvement loop's settings.
+  action plus the MLP (GPU), and an ensemble that averages their cross-sectional ranks. The GRU and the MLP
+  use configs found by the overnight search below; every other model uses the improvement loop's settings.
 - **Validation:** yearly walk-forward with a 5-day embargo. Dev years 2013-2021 drive every decision.
   Final years 2022-2026 are reported but no tuning decision uses them (an early round did see them once,
   so they are not a pristine test). The days after 2026-05-22 are pristine: a data bug had hidden them from
@@ -90,10 +90,10 @@ best dev Sharpe, and no choice used these years):
 | Model | Rank IC | Long-short Sharpe | Long-short return | Long-only top decile Sharpe | Long-only return |
 |---|---|---|---|---|---|
 | **GRU, search-tuned (headline)** | 0.026 | **1.00** | 9.2% | 1.18 | 33.0% |
-| Ensemble | 0.033 | 0.68 | 6.5% | 1.08 | 26.8% |
+| Ensemble | 0.034 | 0.66 | 6.3% | 1.05 | 26.9% |
 | XGBoost | 0.030 | 0.33 | 3.0% | 0.93 | 22.7% |
 | LightGBM | 0.032 | 0.41 | 3.7% | 0.96 | 23.2% |
-| MLP | 0.027 | 0.59 | 5.6% | 1.08 | 27.0% |
+| MLP, search-tuned | 0.024 | 0.66 | 6.4% | 1.09 | 30.5% |
 | Ridge | 0.033 | 0.84 | 9.0% | 1.11 | 31.9% |
 | 12-1 momentum factor | 0.025 | 0.54 | 7.3% | 1.13 | 31.1% |
 | 5-day reversal factor | 0.012 | -0.25 | -3.0% | 0.72 | 16.1% |
@@ -105,7 +105,7 @@ best dev Sharpe, and no choice used these years):
 
 - **The signal is real and small.** Mean rank IC is about 0.03 on both dev and held-out data for every model.
 - **Tuning the sequence model mattered most, though a linear model comes close.** The search-tuned GRU turns a
-  similar rank IC (0.026) into a better portfolio: long-short Sharpe 1.00 against 0.33-0.68 for the tree models,
+  similar rank IC (0.026) into a better portfolio: long-short Sharpe 1.00 against 0.33-0.66 for the tree models,
   MLP and ensemble. Ridge reaches 0.84. The GRU trades less (48x per year against 61-69x), so costs take a
   smaller share. Its config is heavily regularised: 5 feature groups, a 10-day horizon, an excess-return
   target, a 60-day window, dropout 0.47 and only 4 epochs.
@@ -119,7 +119,7 @@ best dev Sharpe, and no choice used these years):
 - **Long-only top decile beat the equal-weight universe** over 2022-2026 by about 18% a year (return 33.0% vs
   13.6%), but that edge did not appear in the pristine tail (next section). The universe holds only today's
   S&P 500 members, so survivorship bias probably inflates the gap.
-- **Caveats on selection.** The GRU config is the best of about 230 search trials, so its numbers carry some
+- **Caveats on selection.** The GRU config is the best of about 150 first-round search trials, so its numbers carry some
   winner's curse that the intervals below ignore. Its dev numbers include the tune years, so dev overstates it.
   The most reliable figures are validation, the final years and the pristine tail.
 
@@ -133,9 +133,9 @@ Results are unchanged for earlier dates. About 118 trading days is a short sampl
 | Model | Rank IC | Long-short Sharpe | Long-only top decile Sharpe | Long-only return |
 |---|---|---|---|---|
 | GRU, search-tuned (headline) | 0.035 | 0.65 | 0.55 | 13.1% |
-| Ensemble | 0.038 | 0.73 | 1.13 | 29.5% |
+| Ensemble | 0.027 | 0.54 | 0.98 | 27.4% |
 | Ridge | 0.069 | 1.70 | 1.15 | 34.8% |
-| MLP | 0.052 | 1.68 | 1.63 | 41.3% |
+| MLP, search-tuned | 0.019 | 0.24 | 0.56 | 14.4% |
 | XGBoost | 0.016 | 0.26 | 0.63 | 15.2% |
 | LightGBM | 0.023 | 0.35 | 0.71 | 17.7% |
 | 12-1 momentum factor | -0.024 | -0.90 | -0.29 | -18.1% |
@@ -146,7 +146,9 @@ Results are unchanged for earlier dates. About 118 trading days is a short sampl
   GRU's interval includes zero ([-0.010, 0.071]) on a sample this short.
 - **The GRU's long-only book lagged the universe** (Sharpe 0.55 vs 1.50, return 13.1% vs 18.4%). Its
   long-short Sharpe was positive (0.65), so the top decile beat the bottom decile without beating the average
-  stock. Ridge and the MLP did best here, so the ranking of models is not stable across periods.
+  stock. Ridge did best here and the search-tuned MLP did worst, so the ranking of models is not stable across periods.
+  The tuned MLP's weak tail (it was the MLP that the search had just adopted) is a warning about adopting small
+  validation gains.
 - **Verdict:** the tail neither confirms nor refutes the GRU. The sign of its rank IC and long-short return
   matches earlier periods, and every interval is wide.
 
@@ -163,10 +165,17 @@ tune score is taken, so validation acts as a gate and never as a second tuning s
   the first 147 trials), whose mean tune IC (0.030) beat the other families (0.021-0.025).
 - **Round one finalists:** the top GRUs reached validation IC 0.033 and long-short Sharpe 1.22-1.29 (baseline
   0.0305 and 0.86). They are near-copies of one config, so this is one finding and not ten. One was adopted.
-- **Round two, 227 trials in total:** finalists now had to beat the adopted GRU. None did. The best, an MLP
+- **Round two, first check (227 trials):** finalists had to beat the adopted GRU. None did. The best, an MLP
   (trial 222), reached validation IC 0.0338 against 0.0334, a gain of 0.0004 where 0.002 was required. The
   trial with the highest tune IC of all (0.0385, an MLP) validated at only 0.032, which is the winner's curse
   that the validation gate is there to catch.
+- **Round two, second check (349 trials):** an MLP (trial 258) reached validation IC 0.0359, a gain of 0.0025,
+  and won 2 of 3 validation years, so it passed the gate and became the MLP member's config. It did not
+  generalise well. Its dev long-short Sharpe rose from 0.62 to 0.96, but on the final years it moved only from
+  0.59 to 0.66, and on the pristine tail it fell from 1.68 to 0.24. Its validation long-short Sharpe (1.00) was
+  already below the GRU's (1.22). This was the fourth finalist check, so a gain of 0.0025 on three years was
+  within what luck can produce. The GRU stays the headline model, and the gate would need a larger margin or
+  a Sharpe condition to be trusted on small gains.
 - **Engineering lessons:** a first run stalled on one transformer trial that would have taken two hours, so every
   trial now has a 10-minute budget. A restart also replayed old random draws until the seed was changed.
 
@@ -217,8 +226,8 @@ Per-model results are in `results/v2/significance.csv`, which also holds the ens
 - **The long-only edge over the equal-weight universe held over 2022-2026 and vanished on the tail**
   (-0.6%, interval spanning -69% to +65%). It also carries the survivorship bias described below, which these
   intervals do not measure.
-- **The intervals treat the model and portfolio as fixed.** They ignore the choice of this GRU among about 230
-  trials, so the true uncertainty is larger. The dev interval also includes years the search tuned on.
+- **The intervals treat the model and portfolio as fixed.** They ignore the choice of this GRU among about 150
+  first-round trials, so the true uncertainty is larger. The dev interval also includes years the search tuned on.
 
 ### Cost sensitivity (`ml2/costs.py`)
 
@@ -233,7 +242,7 @@ The ensemble and the holding-buffer variants are in `results/v2/cost_sensitivity
 | Long-only top decile | Final 2022-26 | 39x | 1.28 | 1.18 | 1.08 | 0.98 | 89 bps |
 
 - **The GRU is far less cost-sensitive than the earlier ensemble.** Its long-short break-even cost is 26-28 bps,
-  against 17-19 bps for the ensemble, because it trades 43-48x per year instead of 62-63x. That covers
+  against 18-21 bps for the ensemble, because it trades 43-48x per year instead of 61-63x. That covers
   typical large-cap execution costs, though not wide retail spreads.
 - **The long-only book holds up to about 90 bps**, because it keeps the market's upside and only tilts
   toward the top decile.

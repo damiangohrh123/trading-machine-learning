@@ -52,6 +52,28 @@
           "seq_len": 60,
           "seq_hidden": 64
         }
+      },
+      "mlp": {
+        "model": "mlp",
+        "groups": [
+          "momentum",
+          "range",
+          "volume",
+          "intraday",
+          "beta"
+        ],
+        "cs_mode": "raw",
+        "horizon": 5,
+        "target": "excess",
+        "params": {
+          "hidden": 256,
+          "dropout": 0.45239656434116343,
+          "lr": 0.001903610927952562,
+          "weight_decay": 0.00012847787939965054,
+          "epochs": 4,
+          "batch": 16384,
+          "loss": "mse"
+        }
       }
     }
   }
