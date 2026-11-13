@@ -1,0 +1,32 @@
+[
+  {
+    "pass": 1,
+    "change": "threshold 0.52",
+    "sharpe": 0.8462,
+    "gain": -0.1174,
+    "kept": false,
+    "turnover": 23.8324,
+    "ann_return": 0.1165,
+    "max_drawdown": -0.2906
+  },
+  {
+    "pass": 2,
+    "change": "top-10 names by prob",
+    "sharpe": 0.5698,
+    "gain": -0.3938,
+    "kept": false,
+    "turnover": 120.5797,
+    "ann_return": 0.0804,
+    "max_drawdown": -0.2694
+  },
+  {
+    "pass": 3,
+    "change": "drop volume features",
+    "sharpe": 0.9709,
+    "gain": 0.0073,
+    "kept": false,
+    "turnover": 13.4756,
+    "ann_return": 0.1396,
+    "max_drawdown": -0.2906
+  }
+]

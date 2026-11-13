@@ -1,0 +1,7 @@
+ts,name,model,groups,params,threshold,max_names,accuracy,ann_return,ann_vol,sharpe,max_drawdown,turnover,hit_rate,n_days,note
+2026-11-13 01:10:58,first_logreg,logreg,momentum+volatility+technical+volume+market+range,{},0.5,,0.5747,0.138,0.1452,0.9636,-0.2906,14.4596,0.5652,1511,phase2 all features
+2026-11-13 01:10:59,first_lgbm,lgbm,momentum+volatility+technical+volume+market+range,{},0.5,,0.5404,0.0926,0.1389,0.7076,-0.2834,41.9111,0.4944,1511,phase2 all features
+2026-11-13 01:11:20,loop_start,logreg,momentum+volatility+technical+volume+market+range,"{""C"": 0.1}",0.5,,0.5747,0.138,0.1452,0.9636,-0.2906,14.4596,0.5652,1511,loop baseline
+2026-11-13 01:11:21,loop_01,logreg,momentum+volatility+technical+volume+market+range,"{""C"": 0.1}",0.52,,0.5747,0.1165,0.1423,0.8462,-0.2906,23.8324,0.544,1511,threshold 0.52
+2026-11-13 01:11:21,loop_02,logreg,momentum+volatility+technical+volume+market+range,"{""C"": 0.1}",0.5,10,0.5747,0.0804,0.1577,0.5698,-0.2694,120.5797,0.5486,1511,top-10 names by prob
+2026-11-13 01:11:21,loop_03,logreg,momentum+volatility+technical+market+range,"{""C"": 0.1}",0.5,,0.5751,0.1396,0.1456,0.9709,-0.2906,13.4756,0.5665,1511,drop volume features
