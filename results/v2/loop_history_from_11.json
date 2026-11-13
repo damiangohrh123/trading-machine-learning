@@ -1,0 +1,72 @@
+[
+  {
+    "pass": 12,
+    "change": "drop intraday features",
+    "kept": false,
+    "ic": 0.0296792321924577,
+    "sharpe": 0.6788523955267152
+  },
+  {
+    "pass": 13,
+    "change": "drop beta features",
+    "kept": false,
+    "ic": 0.03215165060253888,
+    "sharpe": 0.6328688148045912
+  },
+  {
+    "pass": 14,
+    "change": "drop sector features",
+    "kept": false,
+    "ic": 0.031950831392155765,
+    "sharpe": 0.672617843850836
+  },
+  {
+    "pass": 15,
+    "change": "drop market features",
+    "kept": false,
+    "ic": 0.02943189861803311,
+    "sharpe": 0.4722709532523288
+  },
+  {
+    "pass": 16,
+    "change": "drop calendar features",
+    "kept": false,
+    "ic": 0.03150024691372643,
+    "sharpe": 0.6366865250230311
+  },
+  {
+    "pass": 17,
+    "change": "xgb depth 4",
+    "kept": false,
+    "ic": 0.03125605022315942,
+    "sharpe": 0.5476438422806031
+  },
+  {
+    "pass": 18,
+    "change": "xgb depth 8",
+    "kept": false,
+    "ic": 0.03109379238386547,
+    "sharpe": 0.7187317736605584
+  },
+  {
+    "pass": 19,
+    "change": "xgb lr 0.03, 500 trees",
+    "kept": false,
+    "ic": 0.03333779912367581,
+    "sharpe": 0.6711572026759874
+  },
+  {
+    "pass": 20,
+    "change": "xgb min_child_weight 500",
+    "kept": false,
+    "ic": 0.03371346142699745,
+    "sharpe": 0.6316877849583898
+  },
+  {
+    "pass": 21,
+    "change": "xgb colsample 0.3",
+    "kept": false,
+    "ic": 0.03158099906047819,
+    "sharpe": 0.657467525153309
+  }
+]

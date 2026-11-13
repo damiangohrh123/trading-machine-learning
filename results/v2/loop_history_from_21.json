@@ -1,0 +1,100 @@
+[
+  {
+    "pass": 22,
+    "change": "xgb reg_lambda 50",
+    "kept": false,
+    "ic": 0.03210076941346257,
+    "sharpe": 0.6416187004357831
+  },
+  {
+    "pass": 23,
+    "change": "model: lightgbm",
+    "kept": false,
+    "ic": 0.030153464559900478,
+    "sharpe": 0.5848586432695505
+  },
+  {
+    "pass": 24,
+    "change": "model: MLP (GPU)",
+    "kept": false,
+    "ic": 0.033520675104409474,
+    "sharpe": 0.6146538476391199
+  },
+  {
+    "pass": 25,
+    "change": "model: GRU + MLP (GPU)",
+    "kept": false,
+    "ic": 0.031854768303475486,
+    "sharpe": 0.6113665696480852
+  },
+  {
+    "pass": 26,
+    "change": "model: ridge",
+    "kept": false,
+    "ic": 0.02434319237970568,
+    "sharpe": 0.42428422561591983
+  },
+  {
+    "pass": 27,
+    "change": "model: bigger MLP (512, 12 epochs)",
+    "kept": false,
+    "ic": 0.03223773507937855,
+    "sharpe": 0.7835811907021135
+  },
+  {
+    "pass": 28,
+    "change": "model: GRU with 60-day window",
+    "kept": false,
+    "ic": 0.03276375365665699,
+    "sharpe": 0.7007615786947453
+  },
+  {
+    "pass": 29,
+    "change": "model: bigger lightgbm (127 leaves)",
+    "kept": false,
+    "ic": 0.02963742479483934,
+    "sharpe": 0.5485498547441887
+  },
+  {
+    "pass": 30,
+    "change": "model: deeper xgboost (depth 10)",
+    "kept": false,
+    "ic": 0.03237594959356668,
+    "sharpe": 0.7149983046725069
+  },
+  {
+    "pass": 31,
+    "change": "portfolio: top/bottom 5%",
+    "kept": false,
+    "ic": 0.03238909133478237,
+    "sharpe": 0.7991892437662125
+  },
+  {
+    "pass": 32,
+    "change": "portfolio: top/bottom 20%",
+    "kept": false,
+    "ic": 0.03238909133478237,
+    "sharpe": 0.5468063872334699
+  },
+  {
+    "pass": 33,
+    "change": "portfolio: hold 10 days",
+    "kept": false,
+    "ic": 0.03238909133478237,
+    "sharpe": 0.4610822432667522
+  },
+  {
+    "pass": 34,
+    "change": "portfolio: hold 21 days",
+    "kept": false,
+    "ic": 0.03238909133478237,
+    "sharpe": 0.47113803603816573
+  },
+  {
+    "pass": 35,
+    "change": "optuna: tune xgb hyperparameters",
+    "kept": false,
+    "ic": 0.03328939155417705,
+    "sharpe": 0.5992019614748085
+  }
+]

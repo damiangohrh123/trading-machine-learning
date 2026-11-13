@@ -60,6 +60,57 @@ Its equity curve tracks the basket closely because the classifier is mostly "lon
 so it adds little beyond market exposure. It did beat SPY on Sharpe and drawdown in 2022-2025, but that
 is mainly diversification, not predictive skill.
 
+## v2: large-scale cross-sectional ML (GPU)
+
+A bigger rebuild in `ml2/`. Instead of "will this ticker go up", the models rank about 520 stocks and ETFs
+against each other each day and a portfolio goes long the top decile and short the bottom decile.
+
+- **Data:** 2.5M rows (today's S&P 500 members plus 18 ETFs), daily, 2005 to May 2026, 109 features
+  (momentum, volatility, technicals, 52-week range, volume and illiquidity, overnight gap vs intraday move,
+  beta, sector-relative returns, VIX/SPY context, calendar) plus cross-sectional rank versions.
+- **Target:** cross-sectional rank of the 5-day forward return, so market-wide drift cancels out.
+- **Models:** ridge, XGBoost (GPU), LightGBM, a PyTorch MLP (GPU), a GRU over the last 30 days of
+  price action plus the MLP (GPU), and an ensemble that averages their cross-sectional ranks.
+- **Validation:** yearly walk-forward with a 5-day embargo. Dev years 2013-2021 drive every decision.
+  Final years 2022-2026 are evaluated once. Costs: 7 bps per trade plus 30 bps/yr borrow on shorts.
+- **Improvement loop** (`ml2/loop.py`): 35 passes over features, targets, horizons, hyperparameters, model
+  families, portfolio rules and a 25-trial Optuna search. A change is kept only if it gains at least 0.0015
+  mean rank IC and wins in at least 5 of 9 folds. The loop stopped on its patience rule twice because
+  minor ablations ran before the model families, so it was resumed twice (`loop.py 11`, then `loop.py 21 20`)
+  until every candidate ran. All 38 experiments are in `results/v2/experiments.csv`.
+- **Outcome of the loop:** one change was kept (raw features instead of rank features, IC 0.030 to 0.032).
+  Optuna and the bigger models did not beat the defaults.
+
+Held-out results, 2022 to May 2026 (net of costs, run once; the headline model was chosen on dev Sharpe only):
+
+| Model | Rank IC | Long-short Sharpe | Long-short return | Long-only top decile Sharpe | Long-only return |
+|---|---|---|---|---|---|
+| **Ensemble (headline)** | 0.031 | 0.41 | 3.6% | 0.98 | 23.6% |
+| XGBoost | 0.032 | 0.37 | 3.1% | 0.97 | 23.5% |
+| LightGBM | 0.033 | 0.43 | 3.6% | 0.98 | 23.6% |
+| MLP | 0.024 | 0.47 | 4.2% | 1.03 | 25.5% |
+| GRU | 0.027 | 0.46 | 4.2% | 1.04 | 26.7% |
+| Ridge | 0.029 | 0.68 | 6.9% | 1.09 | 30.9% |
+| 12-1 momentum factor | 0.030 | 0.84 | 10.9% | 1.37 | 36.9% |
+| 5-day reversal factor | 0.008 | -0.56 | -5.8% | 0.62 | 13.2% |
+| Equal-weight universe | | | | 0.80 | 13.0% |
+
+![v2 equity](results/v2/final_equity.png)
+
+### Honest conclusion
+
+- **The signal is real and small.** Mean rank IC is about 0.03 on both dev (ensemble 0.037) and held-out
+  data (0.031), and all five models are positive. Ridge reaches 0.024-0.029, so the nonlinear models add a
+  little over a linear baseline, and the ensemble is the best on dev.
+- **It does not convert into a strong market-neutral strategy.** The ensemble's long-short Sharpe fell from
+  0.78 on dev to 0.41 on held-out data. Turnover is about 66x per year, so costs consume much of the edge.
+- **A simple momentum factor beat every ML model on the held-out years** (Sharpe 0.84), although it lost
+  money on dev (-0.11). This points to regime luck in either direction, and 4.4 years cannot settle it.
+- **Long-only top decile beat the equal-weight universe** (Sharpe 0.98 vs 0.80, return 23.6% vs 13.0%), but the
+  universe holds only today's S&P 500 members, so survivorship bias probably inflates that gap.
+- **Bigger models and tuning gave little.** Deeper trees, larger networks, longer GRU windows and the Optuna
+  search moved dev rank IC by at most +0.001, which is within noise. The feature set and target mattered more.
+
 ## Limitations
 
 - **Survivorship / selection bias:** AAPL and MSFT were picked with hindsight; ETFs limit but do not remove this.
@@ -83,6 +134,16 @@ python loop.py                  # experiment loop (dev only)
 python final_test.py            # one-shot held-out evaluation
 streamlit run app/streamlit_app.py
 pytest
+```
+
+v2 (needs an NVIDIA GPU build of PyTorch, see `requirements-v2.txt`):
+
+```bash
+pip install -r requirements-v2.txt
+python -m ml2.data              # download ~520 tickers (several minutes)
+python -m ml2.dataset           # build and cache the feature table
+python -m ml2.loop              # improvement loop; resume with: python -m ml2.loop 11 then python -m ml2.loop 21 20
+python -m ml2.final             # dev metrics, one final-years run, equity chart
 ```
 
 ## Ideas for next steps

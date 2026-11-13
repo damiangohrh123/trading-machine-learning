@@ -1,0 +1,29 @@
+{
+  "groups": [
+    "momentum",
+    "volatility",
+    "technical",
+    "range",
+    "volume",
+    "intraday",
+    "beta",
+    "sector",
+    "market",
+    "calendar"
+  ],
+  "cs_mode": "raw",
+  "target": "rank",
+  "horizon": 5,
+  "model": "xgb",
+  "params": {
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.7,
+    "colsample_bytree": 0.5,
+    "min_child_weight": 100,
+    "reg_lambda": 10.0
+  },
+  "top_frac": 0.1,
+  "hold": 5
+}

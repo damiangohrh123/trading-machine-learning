@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 .env
 data/prices.parquet
+data/v2_*
+results/v2/*.log

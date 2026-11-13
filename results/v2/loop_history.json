@@ -1,0 +1,79 @@
+[
+  {
+    "pass": 1,
+    "change": "raw features instead of ranks",
+    "kept": true,
+    "ic": 0.03238909133478237,
+    "sharpe": 0.6921403796593637
+  },
+  {
+    "pass": 2,
+    "change": "raw + rank features",
+    "kept": false,
+    "ic": 0.03389683737337854,
+    "sharpe": 0.783114005103237
+  },
+  {
+    "pass": 3,
+    "change": "target: cross-sectional z-score",
+    "kept": false,
+    "ic": 0.030999714110670304,
+    "sharpe": 0.7512126945446663
+  },
+  {
+    "pass": 4,
+    "change": "target: top-quintile classifier",
+    "kept": false,
+    "ic": 0.02360807705305501,
+    "sharpe": 0.9962526501056396
+  },
+  {
+    "pass": 5,
+    "change": "train on 10-day horizon",
+    "kept": false,
+    "ic": 0.02688211896633316,
+    "sharpe": 0.5649342520613728
+  },
+  {
+    "pass": 6,
+    "change": "train on 21-day horizon",
+    "kept": false,
+    "ic": 0.027928147509821935,
+    "sharpe": 0.7096172980636434
+  },
+  {
+    "pass": 7,
+    "change": "drop momentum features",
+    "kept": false,
+    "ic": 0.02857440765352756,
+    "sharpe": 0.5078201989721117
+  },
+  {
+    "pass": 8,
+    "change": "drop volatility features",
+    "kept": false,
+    "ic": 0.032453834778114594,
+    "sharpe": 0.6888586967934462
+  },
+  {
+    "pass": 9,
+    "change": "drop technical features",
+    "kept": false,
+    "ic": 0.03301119513306966,
+    "sharpe": 0.6825156477476509
+  },
+  {
+    "pass": 10,
+    "change": "drop range features",
+    "kept": false,
+    "ic": 0.031573938162409367,
+    "sharpe": 0.5919501718438891
+  },
+  {
+    "pass": 11,
+    "change": "drop volume features",
+    "kept": false,
+    "ic": 0.029011848213862747,
+    "sharpe": 0.6072580849366602
+  }
+]
