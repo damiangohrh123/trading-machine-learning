@@ -35,9 +35,11 @@ def weights(pred: pd.DataFrame, top_frac: float, mode: str, hold: int) -> pd.Dat
     return w.rolling(hold, min_periods=1).mean()
 
 
-def backtest(pred: pd.DataFrame, close: pd.DataFrame, top_frac: float, mode: str, hold: int) -> dict:
-    return run_backtest(weights(pred, top_frac, mode, hold), close, cost_bps=S.COST_BPS, slippage_bps=0.0,
-                        borrow_bps=S.BORROW_BPS)
+def backtest(pred: pd.DataFrame, close: pd.DataFrame, top_frac: float, mode: str, hold: int,
+             weight_fn=None) -> dict:
+    """weight_fn(pred, mode) replaces the default decile construction when given."""
+    w = weight_fn(pred, mode) if weight_fn else weights(pred, top_frac, mode, hold)
+    return run_backtest(w, close, cost_bps=S.COST_BPS, slippage_bps=0.0, borrow_bps=S.BORROW_BPS)
 
 
 def equal_weight_universe(pred_days: pd.Index, close: pd.DataFrame) -> dict:
@@ -46,12 +48,12 @@ def equal_weight_universe(pred_days: pd.Index, close: pd.DataFrame) -> dict:
     return run_backtest(w, close, cost_bps=S.COST_BPS, slippage_bps=0.0)
 
 
-def score_folds(preds: dict[int, pd.DataFrame], ds, top_frac: float, hold: int) -> dict:
+def score_folds(preds: dict[int, pd.DataFrame], ds, top_frac: float, hold: int, weight_fn=None) -> dict:
     """Per-fold and pooled metrics. IC is always measured against the 5-day forward return."""
     fwd = ds.fwd[S.HORIZON]
     ics = {y: daily_ic(p, fwd) for y, p in preds.items()}
-    ls = {y: backtest(p, ds.close, top_frac, "ls", hold) for y, p in preds.items()}
-    lo = {y: backtest(p, ds.close, top_frac, "long", hold) for y, p in preds.items()}
+    ls = {y: backtest(p, ds.close, top_frac, "ls", hold, weight_fn) for y, p in preds.items()}
+    lo = {y: backtest(p, ds.close, top_frac, "long", hold, weight_fn) for y, p in preds.items()}
     pool = lambda runs, k: pd.concat([r[k] for r in runs.values()])  # noqa: E731
     ic_all = pd.concat(ics.values())
     ls_m = summarize(pool(ls, "net_returns"), pool(ls, "turnover"))

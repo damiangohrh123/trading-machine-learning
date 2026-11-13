@@ -40,6 +40,11 @@ class Dataset:
             y = pct - 0.5
         elif kind == "excess":  # cross-sectional z-score of the forward return, clipped
             y = fwd.sub(fwd.mean(axis=1), axis=0).div(fwd.std(axis=1), axis=0).clip(-3, 3)
+        elif kind == "resid":  # beta-adjusted return: strip the part explained by SPY, then rank
+            beta = self.X[:, self.col["beta_63"]]
+            resid = np.full(self.close.shape, np.nan, dtype="float32")
+            resid[self.t, self.s] = fwd.values[self.t, self.s] - beta * fwd["SPY"].values[self.t]
+            y = pd.DataFrame(resid, index=fwd.index, columns=fwd.columns).rank(axis=1, pct=True) - 0.5
         elif kind == "class_top":  # top quintile vs the rest
             y = (pct >= 0.8).astype("float32").where(fwd.notna())
         else:

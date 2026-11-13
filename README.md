@@ -111,6 +111,29 @@ Held-out results, 2022 to May 2026 (net of costs, run once; the headline model w
 - **Bigger models and tuning gave little.** Deeper trees, larger networks, longer GRU windows and the Optuna
   search moved dev rank IC by at most +0.001, which is within noise. The feature set and target mattered more.
 
+### Exploration round (`ml2/explore.py`)
+
+Tested ways to cut turnover and to combine the ensemble with the simple momentum rule, plus a beta-adjusted
+target. Choices used the dev years only. The final years were already seen once, so their numbers below are a
+second look, not a clean test. Long-short Sharpe after costs (rank IC shown where the score changes):
+
+| Variant | Dev 2013-21 | Final 2022-26 (second look) |
+|---|---|---|
+| Base: top/bottom decile, 5-day book | 0.78 | 0.41 |
+| Buffer: enter top 10%, exit below 40% | **1.01** | 0.58 |
+| Score smoothing (EMA, half-life 5) | 0.70 | 0.55 |
+| Sector-neutral book | 0.75 | 0.34 |
+| Blend 25% with momentum rank | 0.60 | 0.87 |
+| Blend 50% with momentum rank | 0.33 | 0.94 |
+
+- **Chosen on dev: the 10/40 buffer.** It won 7 of 9 dev folds, and it also improved the second look
+  (0.41 to 0.58). The gain is modest, turnover stays near 70x per year, and picking one of 12 variants
+  carries some selection bias on dev.
+- **Momentum blends disagree across periods.** They hurt on dev and helped a lot on 2022-2026. Because dev
+  decides the choice, the blend was not adopted. The disagreement shows that momentum's value depends on the regime.
+- **Smoothing cuts turnover** (66x to 33-49x) but also cuts rank IC, so net Sharpe does not improve on dev.
+- **The beta-adjusted target was worse** (dev rank IC 0.023 vs 0.032), and sector-neutral books did not help.
+
 ## Limitations
 
 - **Survivorship / selection bias:** AAPL and MSFT were picked with hindsight; ETFs limit but do not remove this.
