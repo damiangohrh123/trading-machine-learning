@@ -6,7 +6,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ml2 import dataset, evaluate, features, models, portfolio, settings as S  # noqa: E402
+from ml2 import data, dataset, evaluate, features, models, portfolio, settings as S  # noqa: E402
 from ml2.walkforward import fold_preds  # noqa: E402
 
 CFG = {"groups": ["momentum", "market"], "cs_mode": "raw", "target": "rank", "horizon": 5, "model": "xgb",
@@ -37,6 +37,16 @@ def capture(monkeypatch):
         return np.zeros(len(Xte))
     monkeypatch.setattr(models, "fit_predict", stub)
     return seen
+
+
+def test_days_without_stock_prices_are_dropped_so_rolling_features_survive():
+    idx = pd.bdate_range("2026-05-20", periods=6)
+    close = pd.DataFrame(100.0, index=idx, columns=["SPY", "A", "B", "^VIX"])
+    close.loc[idx[2], ["SPY", "A", "B"]] = np.nan  # a holiday that still has a VIX row
+    px = {"close": close, "volume": close.copy()}
+    out = data.drop_incomplete_days(px)
+    assert idx[2] not in out["close"].index and len(out["close"]) == 5
+    assert out["close"].index.equals(out["volume"].index)  # every table gets the same days
 
 
 def test_v2_features_do_not_use_future_data():

@@ -77,6 +77,11 @@ def main():
         tbl.to_csv(S.RESULTS / f"{tag}_metrics.csv")
         results[tag] = (tbl, curves, ew)
         print(f"\n== {tag} {a}-{b}\n{tbl.round(3).to_string()}", flush=True)
+        if tag == "final":  # the days after PRISTINE_FROM were never seen by any earlier decision
+            tail = {m: {S.FINAL_YEARS[1]: p[S.FINAL_YEARS[1]].loc[S.PRISTINE_FROM:]} for m, p in preds.items()}
+            tail_tbl, _, _ = table(ds, tail, top_frac, best["hold"])
+            tail_tbl.to_csv(S.RESULTS / "pristine_metrics.csv")
+            print(f"\n== pristine tail {S.PRISTINE_FROM} onward\n{tail_tbl.round(3).to_string()}", flush=True)
 
     # headline model: best dev net long-short Sharpe among the ML models (decided without the final years)
     dev_tbl = results["dev"][0]

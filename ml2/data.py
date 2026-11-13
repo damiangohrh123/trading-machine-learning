@@ -43,9 +43,21 @@ def download(refresh: bool = False) -> None:
     print("tickers with no data:", missing)
 
 
+def drop_incomplete_days(px: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Drop days where under half the stocks have a price.
+
+    Holidays that only carry a VIX row, or a day Yahoo has not filled yet, would otherwise put an all-missing
+    row into every rolling window that contains it and silently remove all later rows.
+    """
+    stocks = [t for t in px["close"].columns if t != "^VIX"]
+    keep = px["close"][stocks].notna().mean(axis=1) >= 0.5
+    return {k: v.loc[keep] for k, v in px.items()}
+
+
 def load() -> dict[str, pd.DataFrame]:
-    """Wide float32 tables keyed by lowercase field name."""
-    return {f.lower(): pd.read_parquet(S.DATA / f"v2_{f.lower()}.parquet").astype("float32") for f in S.FIELDS}
+    """Wide float32 tables keyed by lowercase field name, on complete trading days only."""
+    raw = {f.lower(): pd.read_parquet(S.DATA / f"v2_{f.lower()}.parquet").astype("float32") for f in S.FIELDS}
+    return drop_incomplete_days(raw)
 
 
 def sectors() -> pd.Series:
