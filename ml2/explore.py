@@ -15,15 +15,24 @@ from ml2.walkforward import run_folds
 KEYS = ("ic_mean", "ls_sharpe", "ls_ann_return", "ls_turnover", "long_sharpe", "long_ann_return")
 
 
-def ensemble_preds(ds, best: dict, years: list[int], tag: str) -> dict[int, pd.DataFrame]:
-    """Rank-average ensemble predictions per year, cached on disk because training takes minutes."""
-    path = S.RESULTS / f"preds_{tag}.pkl"
+def model_preds(ds, best: dict, name: str, years: list[int], tag: str) -> dict[int, pd.DataFrame]:
+    """Per-year predictions of one member, cached on disk because training takes minutes."""
+    path = S.RESULTS / f"preds_{name}_{tag}.pkl"
     if path.exists():
         return pickle.loads(path.read_bytes())
-    preds = ensemble({m: run_folds(ds, years, member_cfg(best, m)) for m in ENSEMBLE_OF})
-    preds = {y: p.loc[p.notna().any(axis=1)] for y, p in preds.items()}
+    preds = {y: p.loc[p.notna().any(axis=1)] for y, p in run_folds(ds, years, member_cfg(best, name)).items()}
     path.write_bytes(pickle.dumps(preds))
     return preds
+
+
+def ensemble_preds(ds, best: dict, years: list[int], tag: str) -> dict[int, pd.DataFrame]:
+    """Rank-average ensemble of the cached member predictions."""
+    return ensemble({m: model_preds(ds, best, m, years, tag) for m in ENSEMBLE_OF})
+
+
+def preds_for(ds, best: dict, name: str, years: list[int], tag: str) -> dict[int, pd.DataFrame]:
+    """Predictions of one model, or of the 'ensemble'."""
+    return ensemble_preds(ds, best, years, tag) if name == "ensemble" else model_preds(ds, best, name, years, tag)
 
 
 def variants(sector: pd.Series) -> dict:

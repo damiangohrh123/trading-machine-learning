@@ -1,17 +1,18 @@
-"""Block-bootstrap confidence intervals for the ensemble results (reads the cached predictions).
+"""Block-bootstrap confidence intervals for the GRU and the ensemble (reads cached predictions).
 
 Resampling blocks of days keeps the autocorrelation of returns, so the intervals are not too narrow.
 Paired statistics resample the same dates for both series.
 """
-import pickle
+import json
 
 import numpy as np
 import pandas as pd
 
-from ml2 import dataset, evaluate, settings as S
+from ml2 import dataset, evaluate, explore, settings as S
 from ml2.final import factor_preds
 
 BLOCK, N_BOOT, SEED = 20, 5000, 7
+MODELS = ("gru", "ensemble")
 sharpe = lambda r: r.mean() / r.std() * np.sqrt(252)  # noqa: E731
 
 
@@ -29,30 +30,34 @@ def boot_ci(series: list[pd.Series], stat) -> tuple[float, float, float, float]:
     return stat(*data.T), low, high, float((out > 0).mean())
 
 
+def pooled(preds: dict, years: list[int], ds, mode: str) -> pd.Series:
+    return pd.concat([evaluate.backtest(preds[y], ds.close, 0.1, mode, 5)["net_returns"] for y in years])
+
+
 def main():
     ds = dataset.load()
+    best = json.loads((S.RESULTS / "best_config.json").read_text())
     fwd = ds.fwd[S.HORIZON]
     rows = []
-    for tag, (a, b) in (("dev", S.DEV_YEARS), ("final", S.FINAL_YEARS)):
-        years = list(range(a, b + 1))
-        preds = pickle.loads((S.RESULTS / f"preds_{tag}.pkl").read_bytes())
-        ls = pd.concat([evaluate.backtest(preds[y], ds.close, 0.1, "ls", 5)["net_returns"] for y in years])
-        lo = pd.concat([evaluate.backtest(preds[y], ds.close, 0.1, "long", 5)["net_returns"] for y in years])
-        mom = factor_preds(ds, years)["factor_momentum_12_1"]
-        mom_ls = pd.concat([evaluate.backtest(mom[y], ds.close, 0.1, "ls", 5)["net_returns"] for y in years])
-        ew = evaluate.equal_weight_universe(lo.index, ds.close)["net_returns"]
-        ic = pd.concat([evaluate.daily_ic(preds[y], fwd) for y in years])
-        tests = {
-            "rank IC (mean per day)": ([ic], lambda x: x.mean()),
-            "long-short Sharpe": ([ls], sharpe),
-            "long-only top decile Sharpe": ([lo], sharpe),
-            "long-short Sharpe minus momentum factor": ([ls, mom_ls], lambda x, y: sharpe(x) - sharpe(y)),
-            "long-only minus equal-weight (annual return)": ([lo, ew], lambda x, y: (x - y).mean() * 252),
-        }
-        for name, (series, stat) in tests.items():
-            est, low, high, p_pos = boot_ci(series, stat)
-            rows.append({"period": tag, "statistic": name, "estimate": est, "ci_low": low, "ci_high": high,
-                         "share_positive": p_pos})
+    for model in MODELS:
+        for tag, (a, b) in (("dev", S.DEV_YEARS), ("final", S.FINAL_YEARS)):
+            years = list(range(a, b + 1))
+            preds = explore.preds_for(ds, best, model, years, tag)
+            ls, lo = pooled(preds, years, ds, "ls"), pooled(preds, years, ds, "long")
+            mom_ls = pooled(factor_preds(ds, years)["factor_momentum_12_1"], years, ds, "ls")
+            ew = evaluate.equal_weight_universe(lo.index, ds.close)["net_returns"]
+            ic = pd.concat([evaluate.daily_ic(preds[y], fwd) for y in years])
+            tests = {
+                "rank IC (mean per day)": ([ic], lambda x: x.mean()),
+                "long-short Sharpe": ([ls], sharpe),
+                "long-only top decile Sharpe": ([lo], sharpe),
+                "long-short Sharpe minus momentum factor": ([ls, mom_ls], lambda x, y: sharpe(x) - sharpe(y)),
+                "long-only minus equal-weight (annual return)": ([lo, ew], lambda x, y: (x - y).mean() * 252),
+            }
+            for name, (series, stat) in tests.items():
+                est, low, high, p_pos = boot_ci(series, stat)
+                rows.append({"model": model, "period": tag, "statistic": name, "estimate": est, "ci_low": low,
+                             "ci_high": high, "share_positive": p_pos})
     table = pd.DataFrame(rows)
     table.to_csv(S.RESULTS / "significance.csv", index=False)
     print(table.round(3).to_string(index=False))

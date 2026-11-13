@@ -1,5 +1,5 @@
 {
-  "headline": "ensemble",
+  "headline": "gru",
   "config": {
     "groups": [
       "momentum",
@@ -27,6 +27,32 @@
       "reg_lambda": 10.0
     },
     "top_frac": 0.1,
-    "hold": 5
+    "hold": 5,
+    "overrides": {
+      "gru": {
+        "model": "gru",
+        "groups": [
+          "momentum",
+          "volatility",
+          "range",
+          "volume",
+          "calendar"
+        ],
+        "cs_mode": "raw",
+        "horizon": 10,
+        "target": "excess",
+        "params": {
+          "hidden": 256,
+          "dropout": 0.47357782463321224,
+          "lr": 0.00146933813034618,
+          "weight_decay": 0.00031022288598033486,
+          "epochs": 4,
+          "batch": 16384,
+          "loss": "mse",
+          "seq_len": 60,
+          "seq_hidden": 64
+        }
+      }
+    }
   }
 }

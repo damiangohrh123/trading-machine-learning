@@ -22,6 +22,9 @@ FACTORS = {"factor_momentum_12_1": ("mom_12_1", 1.0), "factor_reversal_5d": ("re
 
 
 def member_cfg(best: dict, name: str) -> dict:
+    """Config for one ensemble member: a search-adopted override if present, else the loop's best settings."""
+    if name in best.get("overrides", {}):
+        return {**best, **best["overrides"][name]}
     # reuse tuned params only for the model the loop tuned; other models use their defaults
     params = best["params"] if best["model"] == name else models.DEFAULTS[name]
     return {**best, "model": name, "params": params}
