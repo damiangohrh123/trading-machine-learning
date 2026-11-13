@@ -6,3 +6,4 @@ data/prices.parquet
 data/v2_*
 results/v2/*.log
 results/v2/*.pkl
+results/v2/search.db
