@@ -157,9 +157,11 @@ Results are unchanged for earlier dates. About 118 trading days is a short sampl
 An unattended Optuna search on the GPU: seven model families (XGBoost, LightGBM, ranking-objective XGBoost,
 MLP, GRU, TCN, transformer), feature groups, raw vs rank features, targets, horizons, hyperparameters, a
 rank-IC training loss and recency weighting. Protocol: trials are scored only on 2013-2018 (tune years). The
-10 best are scored once on 2019-2021 (validation), and one is adopted only if it beats the baseline by more
-than 0.002 rank IC and wins at least 2 of 3 validation years. Among passing finalists the one with the best
-tune score is taken, so validation acts as a gate and never as a second tuning set.
+10 best are scored once on 2019-2021 (validation). The first adoption needed a validation rank IC gain above
+0.002 over the baseline and wins in 2 of 3 years. After the MLP case below, the gate (`search.gate`, tested)
+requires a gain above 0.003 over the adopted config of the same family, wins in 2 of 3 years, and a validation
+long-short Sharpe at least as high. Among passing finalists the one with the best tune score is taken, so
+validation acts as a gate and never as a second tuning set.
 
 - **Round one, 150 trials:** 127 completed, 18 pruned, 5 failed on GPU memory. TPE concentrated on GRUs (84 of
   the first 147 trials), whose mean tune IC (0.030) beat the other families (0.021-0.025).

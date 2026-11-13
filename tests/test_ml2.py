@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -6,7 +7,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ml2 import data, dataset, evaluate, features, forward, models, portfolio, settings as S  # noqa: E402
+from ml2 import data, dataset, evaluate, features, forward, models, portfolio, search, settings as S  # noqa: E402
 from ml2.walkforward import fold_preds  # noqa: E402
 
 CFG = {"groups": ["momentum", "market"], "cs_mode": "raw", "target": "rank", "horizon": 5, "model": "xgb",
@@ -114,6 +115,18 @@ def test_forward_scoring_matches_a_hand_computed_ranking():
     assert abs(r["long_return"] - 0.185) < 1e-9 and abs(r["short_return"] - 0.005) < 1e-9  # top 2 and bottom 2
     assert abs(r["long_minus_short"] - 0.18) < 1e-9 and r["n"] == 20
     assert forward.realized(pred, -fwd)["rank_ic"] < -0.999                 # reversed outcomes flip the sign
+
+
+def _row(ic: float, folds: list[float], sharpe: float) -> dict:
+    return {"valid_ic": ic, "fold_ic": json.dumps(dict(zip(["2019", "2020", "2021"], folds))), "valid_ls_sharpe": sharpe}
+
+
+def test_adoption_gate_needs_ic_gain_two_fold_wins_and_no_sharpe_loss():
+    ref = _row(0.0334, [0.0287, 0.0767, -0.0055], 1.22)
+    assert search.gate(_row(0.0380, [0.03, 0.08, 0.01], 1.30), ref)             # all three conditions hold
+    assert not search.gate(_row(0.0359, [0.0111, 0.0892, 0.0073], 0.995), ref)  # the MLP case: Sharpe is lower
+    assert not search.gate(_row(0.0350, [0.03, 0.08, 0.01], 1.30), ref)          # gain 0.0016 is under 0.003
+    assert not search.gate(_row(0.0380, [0.03, 0.05, -0.01], 1.30), ref)         # wins only 1 of 3 years
 
 
 def _pred(values: dict[str, list[float]]) -> pd.DataFrame:

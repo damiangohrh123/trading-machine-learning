@@ -122,6 +122,21 @@ def run(hours: float) -> None:
                    catch=(torch.cuda.OutOfMemoryError, ValueError))
 
 
+ADOPTABLE = ("xgb", "lgbm", "mlp", "gru")  # ensemble members; other families cannot be adopted as overrides
+MIN_GAIN = 0.003
+
+
+def gate(row: dict, ref: dict, min_gain: float = MIN_GAIN) -> bool:
+    """Adoption rule: validation IC beats the reference by min_gain, wins 2 of 3 years, and Sharpe is no lower.
+
+    The Sharpe condition comes from an MLP whose IC gain passed on IC alone but did not carry into the portfolio.
+    """
+    folds, ref_folds = json.loads(row["fold_ic"]), json.loads(ref["fold_ic"])
+    wins = sum(folds[y] > ref_folds[y] for y in folds)
+    return (row["valid_ic"] - ref["valid_ic"] > min_gain and wins >= 2
+            and row["valid_ls_sharpe"] >= ref["valid_ls_sharpe"])
+
+
 def finalists(n: int) -> None:
     """Score the n best tune-year trials (plus the baseline) once on the validation years."""
     ds = dataset.load()
@@ -144,10 +159,15 @@ def finalists(n: int) -> None:
                      "model": cfg["model"], "cfg": json.dumps(cfg)})
         gc.collect()
         torch.cuda.empty_cache()
+    # each trial is compared with the adopted config of its own family, or with the loop's baseline
+    refs = {r["model"]: r for r in rows if r["name"].startswith("adopted_")}
+    for r in rows:
+        r["gate_pass"] = r["name"].startswith("trial_") and r["model"] in ADOPTABLE and gate(r, refs.get(r["model"], rows[0]))
     table = pd.DataFrame(rows)
     table.to_csv(S.RESULTS / "search_finalists.csv", index=False)
     print(f"{len(done)} completed trials of {len(study.trials)}")
     print(table.drop(columns=["cfg", "fold_ic"]).round(4).to_string())
+    print("passing the adoption gate:", list(table.loc[table["gate_pass"], "name"]) or "none")
 
 
 if __name__ == "__main__":
