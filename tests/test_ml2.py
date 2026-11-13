@@ -6,7 +6,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from ml2 import data, dataset, evaluate, features, models, portfolio, settings as S  # noqa: E402
+from ml2 import data, dataset, evaluate, features, forward, models, portfolio, settings as S  # noqa: E402
 from ml2.walkforward import fold_preds  # noqa: E402
 
 CFG = {"groups": ["momentum", "market"], "cs_mode": "raw", "target": "rank", "horizon": 5, "model": "xgb",
@@ -103,6 +103,17 @@ def test_ic_is_one_for_perfect_and_minus_one_for_reversed_predictions():
     fwd = ds.fwd[5]
     assert evaluate.daily_ic(fwd, fwd).mean() > 0.999
     assert evaluate.daily_ic(-fwd, fwd).mean() < -0.999
+
+
+def test_forward_scoring_matches_a_hand_computed_ranking():
+    names = [f"S{i}" for i in range(20)]
+    pred = pd.Series(np.arange(20.0), index=names)                         # S19 ranks best, S0 worst
+    fwd = pd.Series(np.arange(20.0) / 100, index=names)                     # outcomes agree with the ranking
+    r = forward.realized(pred, fwd, frac=0.1)
+    assert abs(r["rank_ic"] - 1) < 1e-9
+    assert abs(r["long_return"] - 0.185) < 1e-9 and abs(r["short_return"] - 0.005) < 1e-9  # top 2 and bottom 2
+    assert abs(r["long_minus_short"] - 0.18) < 1e-9 and r["n"] == 20
+    assert forward.realized(pred, -fwd)["rank_ic"] < -0.999                 # reversed outcomes flip the sign
 
 
 def _pred(values: dict[str, list[float]]) -> pd.DataFrame:

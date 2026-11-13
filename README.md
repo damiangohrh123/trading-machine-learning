@@ -240,6 +240,27 @@ The ensemble and the holding-buffer variants are in `results/v2/cost_sensitivity
 - **The holding buffer makes no consistent difference for the GRU** (long-short Sharpe 1.25 vs 1.26 on dev,
   1.04 vs 1.00 on the final years). It helped the earlier ensemble, whose daily book changed more.
 
+### Forward test (`ml2/forward.py`)
+
+Every result above is a backtest, and the pristine tail covers only 118 days. The forward test builds a record
+that cannot be tuned after the fact: it logs the headline model's ranking of the latest day before the outcome is
+known, and scores it once prices arrive.
+
+```bash
+python -m ml2.data && python -m ml2.dataset     # refresh prices and features
+python -m ml2.forward predict                   # train on everything labelled so far, rank the latest day
+python -m ml2.forward score                     # rank IC and top-minus-bottom return for each finished day
+```
+
+- **Live predictions** go to `results/forward/`. `predict <model> <YYYY-MM-DD>` replays a past day into
+  `results/forward/replay/` to test the code, and the scorer marks those separately.
+- **First entry:** the GRU's ranking of the 2026-11-12 close (52 longs, 51 shorts), logged on 2026-11-14. Its
+  5-day outcome is known after 2026-11-19.
+- **Checks:** a replay of 2026-09-01 with ridge scored a rank IC of 0.11, and a unit test checks the scoring on
+  a hand-computed ranking.
+- **How to use it:** run `predict` each trading day and `score` weekly. A few hundred days of forward data
+  would settle questions that the 118-day tail cannot.
+
 ## Limitations
 
 - **Survivorship / selection bias:** AAPL and MSFT were picked with hindsight; ETFs limit but do not remove this.
