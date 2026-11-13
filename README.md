@@ -156,6 +156,25 @@ second look, not a clean test. Long-short Sharpe after costs (rank IC shown wher
 - **The intervals treat the model and portfolio as fixed.** They ignore the choices made while tuning, so the
   true uncertainty is larger.
 
+### Cost sensitivity (`ml2/costs.py`)
+
+Ensemble, base decile book, net Sharpe at different one-way trading costs (the results above use 7 bps):
+
+| Book | Period | 0 bps | 7 bps | 14 bps | 21 bps | Break-even cost |
+|---|---|---|---|---|---|---|
+| Long-short | Dev 2013-21 | 1.36 | 0.78 | 0.19 | -0.40 | 16 bps |
+| Long-short | Final 2022-26 | 0.88 | 0.41 | -0.06 | -0.53 | 13 bps |
+| Long-only top decile | Dev 2013-21 | 1.58 | 1.37 | 1.15 | 0.94 | 51 bps |
+| Long-only top decile | Final 2022-26 | 1.17 | 0.98 | 0.80 | 0.61 | 44 bps |
+
+- **Turnover is the bottleneck.** Both books trade about 66x per year. The long-short strategy loses its
+  edge at 13-16 bps per trade, which is realistic for retail execution and above typical institutional
+  costs on large caps.
+- **The long-only book is robust to cost.** It stays well above the equal-weight universe up to 40+ bps,
+  because it holds the market's upside and only tilts toward the top decile.
+- **The holding buffer adds about 0.2-0.3 Sharpe at 7 bps** but does not cut turnover, because it trades
+  the daily book. A cheaper design would trade only when a name's rank moves far.
+
 ## Limitations
 
 - **Survivorship / selection bias:** AAPL and MSFT were picked with hindsight; ETFs limit but do not remove this.
