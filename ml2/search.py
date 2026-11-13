@@ -130,7 +130,10 @@ def finalists(n: int) -> None:
     unique = {json.dumps(t.user_attrs["cfg"], sort_keys=True): t for t in sorted(done, key=lambda t: t.value)}
     top = sorted(unique.values(), key=lambda t: t.value, reverse=True)[:n]  # identical configs count once
     base = json.loads((S.RESULTS / "best_config.json").read_text())
-    entries = [("baseline", base, None)] + [(f"trial_{t.number}", t.user_attrs["cfg"], t.value) for t in top]
+    loop_best = {k: v for k, v in base.items() if k != "overrides"}
+    adopted = [(f"adopted_{m}", {**loop_best, **cfg}, None) for m, cfg in base.get("overrides", {}).items()]
+    # new finalists must beat every adopted config, not just the original baseline
+    entries = [("baseline", loop_best, None)] + adopted + [(f"trial_{t.number}", t.user_attrs["cfg"], t.value) for t in top]
     rows = []
     for name, cfg, tune_ic in entries:
         preds = dict(fold_preds(ds, VALID_YEARS, cfg))
