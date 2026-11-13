@@ -25,7 +25,7 @@ flowchart LR
 - **Label:** forward 5-day return > 0. **Features** use only data up to close *t*.
 - **Splits:** development = 2012-2021 (walk-forward test years 2016-2021, all tuning here). **Held-out = 2022-2025**, evaluated once at the end.
 - **Costs:** 5 bps cost + 2 bps slippage per unit of one-way turnover.
-- **Models:** logistic regression, LightGBM. **Baselines:** SPY buy-and-hold, equal-weight monthly, SMA 50/200.
+- **Models:** logistic regression, LightGBM. **Baselines:** SPY buy-and-hold, equal-weight (daily rebalanced), SMA 50/200.
 - **Experiment loop** (`loop.py`): greedy, one change per pass, keep only if dev net Sharpe improves by > 0.05; stop after 10 passes or 3 passes without improvement.
 - **Tests** (`tests/`): features don't change when future prices change, walk-forward embargo is respected, weights apply to the *next* day's return, costs reduce returns.
 
@@ -35,7 +35,7 @@ Development (walk-forward 2016-2021, net of costs):
 
 | Strategy | Sharpe | Ann. return | Max DD |
 |---|---|---|---|
-| Equal-weight monthly | 1.10 | 16.5% | -29.1% |
+| Equal-weight | 1.10 | 16.5% | -29.1% |
 | SPY buy & hold | 0.99 | 17.5% | -33.7% |
 | Logistic regression | 0.96 | 13.8% | -29.1% |
 | LightGBM (untuned) | 0.71 | 9.3% | -28.3% |
@@ -44,7 +44,7 @@ Held-out 2022-2025 (net of costs, run once):
 
 | Strategy | Sharpe | Ann. return | Max DD | Turnover/yr |
 |---|---|---|---|---|
-| Equal-weight monthly | 0.79 | 10.7% | -19.7% | 0.25 |
+| Equal-weight | 0.79 | 10.7% | -19.7% | 0.25 |
 | **ML (logreg, best dev config)** | **0.78** | 10.4% | -20.0% | 3.8 |
 | SMA 50/200 | 0.70 | 5.9% | -11.8% | 1.7 |
 | SPY buy & hold | 0.67 | 11.1% | -24.5% | 0.25 |
@@ -66,6 +66,7 @@ is mainly diversification, not predictive skill.
 - **Dev-set reuse:** several experiments were scored on the same 2016-2021 folds, so dev numbers are optimistic.
   The tuning loop was short (3 passes) and none of its changes were kept.
 - **Short samples:** 4 years of held-out data (2022-2025 contains one regime); Sharpe differences of 0.1 are noise.
+- **Free rebalancing:** the equal-weight baseline rebalances daily and pays no cost for it, which flatters it slightly.
 - **Simplified execution:** daily closes, no market impact, no borrow, fractional shares, long-only.
 - **Free data:** Yahoo Finance adjusted prices can be revised.
 

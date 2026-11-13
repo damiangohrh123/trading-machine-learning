@@ -15,13 +15,5 @@
     "threshold": 0.5,
     "max_names": null
   },
-  "dev_metrics": {
-    "accuracy": 0.5747,
-    "ann_return": 0.138,
-    "ann_vol": 0.1452,
-    "sharpe": 0.9636,
-    "max_drawdown": -0.2906,
-    "turnover": 14.4596,
-    "hit_rate": 0.5652
-  }
+  "dev_sharpe": 0.9636
 }
