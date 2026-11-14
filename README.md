@@ -189,6 +189,11 @@ validation acts as a gate and never as a second tuning set.
   already below the GRU's (1.22). This was the fourth finalist check, so a gain of 0.0025 on three years was
   within what luck can produce. The GRU stays the headline model, and the gate would need a larger margin or
   a Sharpe condition to be trusted on small gains.
+- **Later checks and totals:** two more finalist checks (after 458 and 609 trials) found nothing that passed the
+  stricter gate. In all, the search ran about 700 trials: 558 completed, 129 pruned and 12 failed (5 on GPU
+  memory, 7 interrupted when the search was paused for finalist runs). The best completed tune IC stayed at
+  0.0385, from an MLP that validated at only 0.032. A final check on the last 61 completed trials was skipped
+  for lack of time, so those trials are unscored on the validation years.
 - **Engineering lessons:** a first run stalled on one transformer trial that would have taken two hours, so every
   trial now has a 10-minute budget. A restart also replayed old random draws until the seed was changed.
 
