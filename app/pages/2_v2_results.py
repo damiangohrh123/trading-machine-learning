@@ -49,6 +49,8 @@ with search:
     df = pd.read_csv(R / "search.csv").drop_duplicates("number", keep="last").sort_values("number")
     df["model"] = df["cfg"].map(lambda s: json.loads(s)["model"])
     st.write(f"{len(df)} trials: " + ", ".join(f"{k.lower()} {v}" for k, v in df["state"].value_counts().items()))
+    # pruned trials hold only a partial score, so charts and summaries use completed trials
+    df = df[df["state"] == "COMPLETE"].copy()
     df["best_so_far"] = df["ic_tune"].cummax()
     st.line_chart(df.set_index("number")[["ic_tune", "best_so_far"]])
     by_model = df.groupby("model")["ic_tune"].agg(["count", "mean", "max"]).sort_values("mean", ascending=False)

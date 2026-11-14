@@ -78,7 +78,9 @@ def sample_cfg(trial) -> dict:
 
 
 def log_trial(study, trial) -> None:
-    row = {"number": trial.number, "state": trial.state.name, "ic_tune": trial.value,
+    # a pruned trial keeps its last partial score as .value, so only completed trials get a tune IC in the log
+    complete = trial.state == optuna.trial.TrialState.COMPLETE
+    row = {"number": trial.number, "state": trial.state.name, "ic_tune": trial.value if complete else None,
            "secs": round((trial.datetime_complete - trial.datetime_start).total_seconds()),
            "fold_ic": json.dumps(trial.user_attrs.get("fold_ic")), "cfg": json.dumps(trial.user_attrs.get("cfg"))}
     S.RESULTS.mkdir(parents=True, exist_ok=True)
