@@ -1,13 +1,21 @@
-# ML walk-forward backtest (research project)
+# ML trading research: leakage-aware walk-forward backtests
 
 > **Research only, not financial advice.** Backtests and simulations only. No brokerage connection, no real trades.
 
-A small, leakage-aware machine-learning pipeline that predicts whether each of 20 liquid US ETFs/stocks
-will be up over the next 5 trading days, turns the predictions into long-only positions, and evaluates
-them with a walk-forward backtest that includes transaction costs. The point of the project is **honest
-evaluation**, not a money machine.
+One question, asked twice: can machine learning predict short-term stock returns well enough to survive
+trading costs? The point of the project is **honest evaluation**, so every result comes with its caveats.
 
-## Pipeline
+- **v1 (20 tickers, up/down classifier):** no usable signal. A plain equal-weight basket matched the model.
+- **v2 (about 520 stocks, GPU models that rank stocks against each other):** a small real signal, with
+  rank IC around 0.03 on every period. The headline search-tuned GRU earned a long-short Sharpe of 1.00 over
+  2022 to Nov 2026 (95% interval 0.26 to 1.76). On the 118-day pristine tail it earned 0.65 (interval -1.36 to
+  2.98), and its long-only book lagged the equal-weight universe. The evidence is encouraging but inconclusive,
+  and a forward test is collecting the data that would settle it.
+
+Sections: [v1](#v1-pipeline), [v2 results](#v2-large-scale-cross-sectional-ml-gpu),
+[forward test](#forward-test-ml2forwardpy), [limitations](#limitations), [how to run](#run-it).
+
+## v1 pipeline
 
 ```mermaid
 flowchart LR
@@ -19,7 +27,10 @@ flowchart LR
     F --> G[Metrics + dashboard]
 ```
 
-## Method
+## v1 method
+
+A small pipeline that predicts whether each of 20 liquid US ETFs and stocks will be up over the next
+5 trading days, turns the predictions into long-only positions, and backtests them with transaction costs.
 
 - **Data:** 20 tickers (broad/sector/bond/gold ETFs + AAPL, MSFT), daily adjusted prices 2011-2025, VIX as context.
 - **Label:** forward 5-day return > 0. **Features** use only data up to close *t*.
@@ -29,7 +40,7 @@ flowchart LR
 - **Experiment loop** (`loop.py`): greedy, one change per pass, keep only if dev net Sharpe improves by > 0.05; stop after 10 passes or 3 passes without improvement.
 - **Tests** (`tests/`): features don't change when future prices change, walk-forward embargo is respected, weights apply to the *next* day's return, costs reduce returns.
 
-## Results
+## v1 results
 
 Development (walk-forward 2016-2021, net of costs):
 
@@ -274,12 +285,18 @@ python -m ml2.forward score                     # rank IC and top-minus-bottom r
 
 ## Limitations
 
-- **Survivorship / selection bias:** AAPL and MSFT were picked with hindsight; ETFs limit but do not remove this.
-- **Dev-set reuse:** several experiments were scored on the same 2016-2021 folds, so dev numbers are optimistic.
-  The tuning loop was short (3 passes) and none of its changes were kept.
-- **Short samples:** 4 years of held-out data (2022-2025 contains one regime); Sharpe differences of 0.1 are noise.
-- **Free rebalancing:** the equal-weight baseline rebalances daily and pays no cost for it, which flatters it slightly.
-- **Simplified execution:** daily closes, no market impact, no borrow, fractional shares, long-only.
+- **Survivorship bias (largest):** v2 trades today's S&P 500 members, which are survivors that tend to have
+  risen, and v1 used two hindsight-picked stocks. Long-only gains against the universe are probably inflated.
+  A fix needs point-in-time index membership, which free data does not provide.
+- **Selection effects:** the GRU is the best of many search trials, and the intervals ignore that choice. The
+  tuned MLP showed what a luck-driven adoption looks like. Dev numbers include the years the search tuned on.
+- **Short out-of-sample evidence:** the final years hold one market regime, and the pristine tail has 118
+  days, so its intervals are wide. The forward test is the way to add clean data over time.
+- **Data handling:** a bug once hid five months of prices from every analysis, because an all-missing holiday
+  row breaks rolling windows. It is fixed and tested, and it shows how silent such failures can be.
+- **Simplified execution:** daily closes, no market impact or capacity limits, shorts always available at
+  30 bps per year, fractional shares, and a flat 7 bps per trade.
+- **Free rebalancing in baselines:** the equal-weight benchmark rebalances daily at no cost, which flatters it.
 - **Free data:** Yahoo Finance adjusted prices can be revised.
 
 ## Run it
@@ -314,5 +331,8 @@ streamlit run app/streamlit_app.py   # v1 page, plus "2 v2 results" in the sideb
 
 ## Ideas for next steps
 
-Cross-sectional ranking (long top-k vs short bottom-k), volatility targeting, regime filters,
-triple-barrier labels, purged k-fold CV, point-in-time universe membership.
+- Point-in-time universe membership, to remove the largest bias.
+- Let the forward test run for a few hundred trading days and score it weekly.
+- Select models on validation long-short Sharpe and rank IC together instead of IC alone.
+- Volatility targeting, regime filters, triple-barrier labels and purged k-fold cross-validation.
+- A turnover-aware training loss, since turnover decided which model survived costs.
