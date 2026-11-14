@@ -2,8 +2,8 @@
 
 > Research only, not financial advice. Backtests only. No brokerage connection, no real trades.
 
-Can a machine learning model predict short-term stock returns well enough to pay for trading costs? I built
-two versions and tested them with walk-forward backtests.
+This project evaluates whether machine learning models can predict short-term stock returns accurately enough
+to cover trading costs. It contains two versions, each tested with walk-forward backtests.
 
 - **v1** (20 tickers, up/down classifier): no signal. An equal-weight basket did as well as the model.
 - **v2** (about 520 stocks, GPU models that rank stocks against each other): a small signal. Rank IC is about
