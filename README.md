@@ -11,6 +11,51 @@ to cover trading costs. It contains two versions, each tested with walk-forward 
   (95% interval 0.26 to 1.76). On the last 118 days it earned 0.65 (interval -1.36 to 2.98). That sample is
   too short to decide anything. A forward test is collecting more.
 
+## Key terms
+
+**The idea.** A model looks at each stock's recent history and predicts how it will do compared with other
+stocks over the next 5 trading days. A backtest replays the past to check how a portfolio built from those
+predictions would have performed.
+
+**Testing without cheating**
+
+| Term | Meaning |
+|---|---|
+| Walk-forward | The model is trained on past years only, then tested on the next unseen year. This repeats each year, like real use. |
+| Embargo | A 5-day gap between training and test data. Without it, a training label (5-day future return) could overlap the test period. |
+| Dev, validation, final, pristine | Dev years (2013-2021) guide all choices. Validation (2019-2021) is a check on the search. Final years (2022-2026) are reported, not tuned on. The pristine tail (from 2026-05-23) was never seen by any decision. |
+| Leakage | Any use of future information in a prediction. Tests in `tests/` check that none occurs. |
+
+**Prediction quality**
+
+| Term | Meaning |
+|---|---|
+| Rank IC (information coefficient) | Each day, the correlation between the model's ranking of stocks and their actual ranking by return. It ranges from -1 to 1. 0 means no skill. Daily values near 0.03 are typical of real signals, and such a signal is small but usable when combined across hundreds of stocks. |
+| Interval (95%) | The range that likely contains the true value. If it includes 0, the result could be luck. Computed by bootstrap: resampling 20-day blocks of days 5000 times. |
+
+**Portfolio and performance**
+
+| Term | Meaning |
+|---|---|
+| Decile | One tenth of the stocks (about 52). The top decile holds the stocks the model likes most. |
+| Long-short | Buy the top decile and short the bottom decile. The market's overall move cancels out, so this measures skill alone. |
+| Long-only | Buy the top decile and hold no shorts. This also gains from a rising market. |
+| Equal-weight universe | Hold every stock in equal amounts. The simple benchmark to beat. |
+| Sharpe ratio | Return divided by volatility, annualised. Higher is better. Around 1 is good, and above 2 is rare. |
+| Max drawdown (DD) | The largest fall from a peak to a later low. |
+| Turnover | How many times a year the portfolio's value is traded. 48x means a full replacement of the book 48 times a year. |
+| bps (basis points) | 1 bp is 0.01%. A cost of 7 bps costs 0.07% of each trade. |
+| Borrow cost | The yearly fee for shorting a stock (30 bps here). |
+| Break-even cost | The trading cost at which the strategy's profit reaches zero. |
+
+**Pitfalls**
+
+| Term | Meaning |
+|---|---|
+| Survivorship bias | The stock list holds today's S&P 500 members, which tended to rise. Past losers that left the index are missing. |
+| Winner's curse | The best of many trials looks better than it is, because its score includes some luck. |
+| Forward test | Predictions are logged before outcomes exist, then scored. Nobody can tune them afterwards. |
+
 ## v1
 
 ```mermaid
@@ -126,11 +171,11 @@ transformer), feature groups, targets, horizons, hyperparameters, a rank-IC loss
   long-short Sharpe 1.22-1.29 (baseline 0.0305 and 0.86). One was adopted.
 - **The MLP adoption failed.** An MLP (trial 258) passed the first gate with a validation IC gain of 0.0025.
   Its dev Sharpe rose from 0.62 to 0.96, but on the pristine tail it fell from 1.68 to 0.24. A gain that small
-  over three years is within luck. I added the Sharpe condition and the larger margin to the gate after this.
+  over three years is within luck. The Sharpe condition and the larger margin were added to the gate afterwards.
   The GRU stays the headline model.
 - **Winner's curse:** the trial with the highest tune IC (0.0385, an MLP) validated at only 0.032.
 - **Fixes:** one transformer trial would have run for two hours, so every trial now has a 10-minute budget. A
-  restart replayed old random draws until I changed the seed.
+  restart replayed old random draws until the seed depended on the trial count.
 
 ### Exploration round (`ml2/explore.py`)
 
@@ -148,7 +193,7 @@ The final-years column is a second look, since those years were already seen onc
 
 - The 10/40 buffer won on dev (7 of 9 folds) and improved the second look. Choosing 1 of 12 variants adds
   some selection bias.
-- Momentum blends hurt on dev and helped on 2022-2026, so I did not adopt them.
+- Momentum blends hurt on dev and helped on 2022-2026, so they were not adopted.
 - Smoothing cut turnover from 66x to 33-49x but also cut rank IC.
 - A beta-adjusted target was worse (dev rank IC 0.023 against 0.032).
 
@@ -170,7 +215,7 @@ also holds the ensemble.
 - The long-short Sharpe interval excludes zero on the final years but includes it on the 118-day tail.
 - The GRU led momentum on every period, but the lead on the final years has an interval that includes zero.
 - The long-only edge over the universe held over 2022-2026 and vanished on the tail.
-- These intervals treat the model as fixed. They ignore that I picked this GRU from about 150 trials, so the
+- These intervals treat the model as fixed. They ignore that this GRU was picked from about 150 trials, so the
   true uncertainty is larger.
 
 ### Cost sensitivity (`ml2/costs.py`)
