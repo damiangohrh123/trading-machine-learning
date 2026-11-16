@@ -75,6 +75,62 @@ def _window(seq_all: torch.Tensor, t: torch.Tensor, s: torch.Tensor, length: int
     return seq_all[(t[:, None] + steps).clamp(min=0), s[:, None]]
 
 
+def _day_grid(ds, rows: np.ndarray, first_pos: int) -> torch.Tensor:
+    """(days, tickers) table of positions (first_pos + i) of `rows`; -1 where a stock has no row that day."""
+    t, s = ds.t[rows], ds.s[rows]
+    day = np.searchsorted(np.unique(t), t)
+    grid = np.full((day.max() + 1, len(ds.tickers)), -1, dtype=np.int64)
+    grid[day, s] = first_pos + np.arange(len(rows))
+    return torch.tensor(grid, device=DEV)
+
+
+def _day_losses(p: torch.Tensor, y: torch.Tensor, m: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Mean daily negative correlation with the target, and mean squared change of the standardised
+    score between consecutive days (a turnover proxy). p, y, m are (days, tickers)."""
+    n = m.sum(1).clamp(min=1)
+    z = []
+    for v in (p, y):
+        c = (v - (v * m).sum(1, keepdim=True) / n[:, None]) * m
+        z.append(c / ((c.pow(2).sum(1) / n).sqrt()[:, None] + 1e-8))
+    ok = m.sum(1) >= 20
+    ic = ((z[0] * z[1]).sum(1) / n)[ok].mean()
+    pair = m[1:] & m[:-1]
+    turn = ((z[0][1:] - z[0][:-1]).pow(2) * pair).sum() / pair.sum().clamp(min=1)
+    return -ic, turn
+
+
+def _fit_days(params, net, opt, forward, xtr, ytr_t, ds, tr_np, tr_t, n_fit, deadline) -> None:
+    """Train on blocks of consecutive days: loss = -daily IC + turn_lambda * day-to-day score change."""
+    block, lam = params.get("block", 10), params["turn_lambda"]
+    fit_grid, val_grid = _day_grid(ds, tr_np[:n_fit], 0), _day_grid(ds, tr_np[n_fit:], n_fit)
+
+    def run(grid, start, penalty):
+        pos = grid[start:start + block]
+        m = pos >= 0
+        flat = pos[m]
+        p, y = (torch.zeros(pos.shape, device=DEV) for _ in range(2))
+        p[m] = forward(xtr[flat], tr_t[flat])
+        y[m] = ytr_t[flat]
+        neg_ic, turn = _day_losses(p, y, m)
+        return neg_ic + lam * turn if penalty else neg_ic
+
+    best, best_state = float("inf"), None
+    for _ in range(params["epochs"]):
+        net.train()
+        for start in torch.randint(0, len(fit_grid) - block, (len(fit_grid) // block,)).tolist():
+            if deadline and time.time() > deadline:
+                raise TrialTimeout
+            opt.zero_grad()
+            run(fit_grid, start, True).backward()
+            opt.step()
+        net.eval()
+        with torch.no_grad():
+            val = np.mean([run(val_grid, s, False).item() for s in range(0, len(val_grid) - block, block)])
+        if val < best:
+            best, best_state = val, copy.deepcopy(net.state_dict())
+    net.load_state_dict(best_state)
+
+
 def fit_predict(params: dict, Xtr, ytr, Xte, ctx: dict, arch: str) -> np.ndarray:
     """arch is 'none' (plain MLP), 'gru', 'tcn' or 'transformer'."""
     torch.manual_seed(S.SEED)
@@ -104,22 +160,25 @@ def fit_predict(params: dict, Xtr, ytr, Xte, ctx: dict, arch: str) -> np.ndarray
     # rows are date-sorted, so the last 10% of the training rows is a time-ordered validation set
     n_val = len(xtr) // 10
     n_fit = len(xtr) - n_val
-    best, best_state = float("inf"), None
-    for _ in range(params["epochs"]):
-        net.train()
-        for idx in torch.randperm(n_fit, device=DEV).split(params["batch"]):
-            if ctx["deadline"] and time.time() > ctx["deadline"]:
-                raise TrialTimeout
-            opt.zero_grad()
-            loss_fn(forward(xtr[idx], tr[idx]), ytr_t[idx]).backward()
-            opt.step()
-        net.eval()
-        with torch.no_grad():
-            val = np.mean([loss_fn(forward(xtr[i], tr[i]), ytr_t[i]).item()
-                           for i in torch.arange(n_fit, len(xtr), device=DEV).split(CHUNK)])
-        if val < best:  # keep the epoch with the lowest validation loss
-            best, best_state = val, copy.deepcopy(net.state_dict())
-    net.load_state_dict(best_state)
+    if "turn_lambda" in params:
+        _fit_days(params, net, opt, forward, xtr, ytr_t, ds, ctx["tr"], tr, n_fit, ctx["deadline"])
+    else:
+        best, best_state = float("inf"), None
+        for _ in range(params["epochs"]):
+            net.train()
+            for idx in torch.randperm(n_fit, device=DEV).split(params["batch"]):
+                if ctx["deadline"] and time.time() > ctx["deadline"]:
+                    raise TrialTimeout
+                opt.zero_grad()
+                loss_fn(forward(xtr[idx], tr[idx]), ytr_t[idx]).backward()
+                opt.step()
+            net.eval()
+            with torch.no_grad():
+                val = np.mean([loss_fn(forward(xtr[i], tr[i]), ytr_t[i]).item()
+                               for i in torch.arange(n_fit, len(xtr), device=DEV).split(CHUNK)])
+            if val < best:  # keep the epoch with the lowest validation loss
+                best, best_state = val, copy.deepcopy(net.state_dict())
+        net.load_state_dict(best_state)
     net.eval()
     with torch.no_grad():
         out = [forward(xte[i], te[i]).float().cpu().numpy() for i in torch.arange(len(xte), device=DEV).split(CHUNK)]
