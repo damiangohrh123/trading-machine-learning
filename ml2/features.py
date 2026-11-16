@@ -16,8 +16,13 @@ GROUPS = {
     "sector": ["sec_rel_ret_5", "sec_rel_ret_21", "sec_rel_vol_21"],
     "market": ["vix", "vix_chg_5", "vix_z_63", "spy_ret_5", "spy_ret_21", "spy_ret_63", "spy_vol_21"],
     "calendar": ["dow", "month"],
+    "residual": ["sec_rel_ret_1", "sec_rel_ret_10", "idio_ret_5", "idio_ret_21"],
+    "volvol": ["vol_of_vol_21", "vol_trend_126", "autocorr_21"],
+    "liquidity": ["dvol_ratio_126", "vol_chg_63"],
+    "breadth": ["disp_1", "disp_21", "breadth_1", "breadth_sma50", "spy_dd_252", "spy_above_sma200"],
 }
-SHARED = ("market", "calendar")  # same value for every ticker on a date, so no cross-sectional rank
+SHARED = ("market", "calendar", "breadth")  # same value for every ticker on a date, so no cross-sectional rank
+NEW_GROUPS = ("residual", "volvol", "liquidity", "breadth")
 
 
 def _rsi(close: pd.DataFrame, n: int = 14) -> pd.DataFrame:
@@ -87,6 +92,18 @@ def compute_wide(px: dict[str, pd.DataFrame], sector: pd.Series) -> tuple[dict, 
     for name, base in (("sec_rel_ret_5", "ret_5"), ("sec_rel_ret_21", "ret_21"), ("sec_rel_vol_21", "vol_21")):
         f[name] = f[base] - f[base].T.groupby(groups).transform("mean").T
 
+    for name, base in (("sec_rel_ret_1", "ret_1"), ("sec_rel_ret_10", "ret_10")):
+        f[name] = f[base] - f[base].T.groupby(groups).transform("mean").T
+    spy_r5, spy_r21 = c["SPY"].pct_change(5), c["SPY"].pct_change(21)
+    f["idio_ret_5"] = f["ret_5"].sub(beta.mul(spy_r5, axis=0))
+    f["idio_ret_21"] = f["ret_21"].sub(beta.mul(spy_r21, axis=0))
+
+    f["vol_of_vol_21"] = f["vol_5"].rolling(21).std() / f["vol_21"]
+    f["vol_trend_126"] = f["vol_21"] / r.rolling(126).std()
+    f["autocorr_21"] = r.rolling(21).corr(r.shift(1)).replace([np.inf, -np.inf], np.nan)
+    f["dvol_ratio_126"] = np.log(dollar.rolling(21).mean() / dollar.rolling(126).mean())
+    f["vol_chg_63"] = v.rolling(21).mean() / v.rolling(63).mean() - 1
+
     def shared(series):  # broadcast a per-date series over all tickers
         return pd.DataFrame(np.repeat(series.reindex(c.index).values[:, None], len(stocks), axis=1),
                             index=c.index, columns=stocks)
@@ -96,6 +113,12 @@ def compute_wide(px: dict[str, pd.DataFrame], sector: pd.Series) -> tuple[dict, 
     spy_c = c["SPY"]
     f["spy_ret_5"], f["spy_ret_21"], f["spy_ret_63"] = (shared(spy_c.pct_change(n)) for n in (5, 21, 63))
     f["spy_vol_21"] = shared(spy.rolling(21).std())
+    f["disp_1"] = shared(f["ret_1"].std(axis=1))
+    f["disp_21"] = shared(f["ret_21"].std(axis=1))
+    f["breadth_1"] = shared((f["ret_1"] > 0).mean(axis=1))
+    f["breadth_sma50"] = shared((f["dist_sma_50"] > 0).mean(axis=1))
+    f["spy_dd_252"] = shared(spy_c / spy_c.rolling(252).max() - 1)
+    f["spy_above_sma200"] = shared((spy_c > spy_c.rolling(200).mean()).astype(float))
     f["dow"] = shared(pd.Series(c.index.day_of_week, index=c.index).astype("float32"))
     f["month"] = shared(pd.Series(c.index.month, index=c.index).astype("float32"))
     return {k: v_.astype("float32") for k, v_ in f.items()}, c
