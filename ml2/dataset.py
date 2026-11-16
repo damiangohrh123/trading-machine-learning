@@ -32,6 +32,25 @@ class Dataset:
     def matrix(self, names: list[str]) -> np.ndarray:
         return self.X[:, [self.col[n] for n in names]]
 
+    def _wide(self, name: str) -> pd.DataFrame:
+        """One feature as a date x ticker frame."""
+        w = np.full(self.close.shape, np.nan, dtype="float32")
+        w[self.t, self.s] = self.X[:, self.col[name]]
+        return pd.DataFrame(w, index=self.dates, columns=self.tickers)
+
+    def _triple_barrier(self, horizon: int) -> np.ndarray:
+        c = self.close.values
+        barrier = (self._wide("vol_63") * np.sqrt(horizon)).values
+        label = np.full(c.shape, np.nan, dtype="float32")
+        for j in range(1, horizon + 1):
+            r = np.full(c.shape, np.nan, dtype="float32")
+            r[:-j] = c[j:] / c[:-j] - 1
+            hit = np.isnan(label) & (np.abs(r) >= barrier)
+            label[hit] = np.sign(r[hit])
+        label = np.where(np.isnan(label), np.clip(r / barrier, -1, 1), label)  # r is the full-horizon return here
+        label[np.isnan(r)] = np.nan
+        return label[self.t, self.s].astype("float32")
+
     def target(self, kind: str, horizon: int) -> np.ndarray:
         """Per-row training target built from forward returns; NaN where the future is unknown."""
         fwd = self.fwd[horizon]
@@ -45,6 +64,19 @@ class Dataset:
             resid = np.full(self.close.shape, np.nan, dtype="float32")
             resid[self.t, self.s] = fwd.values[self.t, self.s] - beta * fwd["SPY"].values[self.t]
             y = pd.DataFrame(resid, index=fwd.index, columns=fwd.columns).rank(axis=1, pct=True) - 0.5
+        elif kind == "sector":  # rank of the return after removing the sector mean
+            sec = data.sectors().reindex(self.tickers).values
+            y = fwd.sub(fwd.T.groupby(sec).transform("mean").T).rank(axis=1, pct=True) - 0.5
+        elif kind == "volscaled":  # return in units of the stock's own volatility, z-scored across stocks
+            vol = self._wide("vol_63")
+            r = fwd / (vol * np.sqrt(horizon))
+            y = r.sub(r.mean(axis=1), axis=0).div(r.std(axis=1), axis=0).clip(-3, 3)
+        elif kind == "triple":  # +1/-1 when a +-1 sigma barrier is hit first, else the scaled final return
+            return self._triple_barrier(horizon)
+        elif kind == "multi":  # average rank over the 5, 10 and 21 day horizons
+            ranks = [self.fwd[h].rank(axis=1, pct=True) - 0.5 for h in HORIZONS]
+            y = sum(ranks) / len(ranks)
+            y = y.where(self.fwd[HORIZONS[-1]].notna())
         elif kind == "class_top":  # top quintile vs the rest
             y = (pct >= 0.8).astype("float32").where(fwd.notna())
         else:
