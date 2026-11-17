@@ -22,8 +22,8 @@ from ml2.walkforward import fold_preds
 TUNE_YEARS = list(range(2013, 2019))
 VALID_YEARS = [2019, 2020, 2021]
 DB = f"sqlite:///{(S.RESULTS / 'search.db').as_posix()}"
-STUDY = "v2_search"
-LOG = S.RESULTS / "search.csv"
+STUDY = "v3_search"  # v2_search holds the first search; v3 adds the new targets, feature groups and turnover penalty
+LOG = S.RESULTS / "search_v3.csv"
 MODEL_NAMES = ["xgb", "lgbm", "xgb_rank", "mlp", "gru", "tcn", "transformer"]
 MAX_TRIAL_SECS = 600  # a trial past this budget is pruned, so heavy configs cannot stall the search
 
@@ -36,6 +36,9 @@ def _net_params(trial, sequence: bool) -> dict:
              epochs=trial.suggest_int("epochs", 4, 16),
              batch=trial.suggest_categorical("batch", [4096, 8192, 16384]),
              loss=trial.suggest_categorical("loss", ["mse", "ic"]))
+    penalty = trial.suggest_categorical("turn_lambda", [0.0, 0.3, 3.0])  # 0 = original batch training
+    if penalty:
+        p["turn_lambda"] = penalty
     if sequence:
         p["seq_len"] = trial.suggest_categorical("seq_len", [20, 30, 60])
         p["seq_hidden"] = trial.suggest_categorical("seq_hidden", [32, 64, 128])
@@ -67,11 +70,15 @@ def sample_cfg(trial) -> dict:
     groups = ["momentum"] + [g for g in GROUPS if g != "momentum" and trial.suggest_categorical(f"use_{g}", [True, False])]
     cfg = {"model": model, "groups": groups, "cs_mode": trial.suggest_categorical("cs_mode", ["raw", "cs", "both"]),
            "horizon": trial.suggest_categorical("horizon", [5, 10])}
-    cfg["target"] = "rank" if model == "xgb_rank" else trial.suggest_categorical("target", ["rank", "excess", "class_top"])
+    cfg["target"] = "rank" if model == "xgb_rank" else trial.suggest_categorical(
+        "target", ["rank", "excess", "class_top", "sector", "multi"])
+    if cfg["target"] == "multi":
+        cfg["horizon"] = 21  # the target averages the 5, 10 and 21 day ranks; 21 sets the embargo
     if model in models.SEQUENCE_ARCH:
         cfg["params"] = _net_params(trial, model != "mlp")
         if cfg["target"] == "class_top":
             cfg["params"]["loss"] = "mse"  # ignored by the classifier head, kept explicit for the log
+            cfg["params"].pop("turn_lambda", None)  # the day-block loss needs a regression target
     else:
         cfg["params"] = _tree_params(trial, model)
     return cfg
