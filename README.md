@@ -308,6 +308,10 @@ Net long-short Sharpe, old config against new config:
 - **Costs rose.** The adopted GRU trades 59x a year on the final years (48x before), so its long-short
   break-even falls from 26 bps to 15 bps. The ensemble's break-even is 17 bps on the final years. The
   long-only books survive costs up to about 50 bps.
+- **Ensemble membership (dev years only):** all 26 subsets of ridge, XGBoost, LightGBM, MLP and GRU were
+  compared. Adding ridge lowered dev Sharpe from 1.30 to 1.15 and validation Sharpe from 1.60 to 1.32. The
+  best subset (MLP and GRU, 1.38) beats the four-model ensemble by less than the noise, so the ensemble
+  stays. This run did not read the final years.
 - `ml2.final` now picks the ensemble as the headline model by dev Sharpe.
 
 ## Limitations
