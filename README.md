@@ -252,6 +252,8 @@ python -m ml2.forward score                     # rank IC and top-minus-bottom r
   after 2026-11-19.
 - A replay of 2026-09-01 with ridge scored a rank IC of 0.11, and a unit test checks the scorer on a
   hand-computed ranking.
+- The 2026-11-12 entry used the first-config GRU. `best_config.json` now holds the round-three GRU, so later
+  entries use that one and the model changes within the log. Score the two groups of days separately.
 - Run `predict` every trading day and `score` every week. A few hundred days would settle what 118 cannot.
 
 ### Round three: targets, turnover, features, wider search
