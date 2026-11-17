@@ -290,8 +290,25 @@ Net long-short Sharpe, old config against new config:
 - **Conclusion:** the sector target and longer horizons are the changes most likely to be real, because they
   helped on every split for several models. Differences below about 0.2 Sharpe are noise at this sample size.
   The model choice and the search gains are not established. The forward test is the remaining evidence.
-- **Not rerun:** the bootstrap intervals and cost tables above still describe the first config.
-  `ml2.final` now picks the ensemble as the headline model by dev Sharpe.
+- **Intervals and costs for the new config** (`results/v2/significance.csv`, `cost_sensitivity.csv`; the
+  tables above describe the first config):
+
+| Statistic | Model | Dev 2013-21 | Final 2022-26 |
+|---|---|---|---|
+| Rank IC | GRU | 0.037 [0.025, 0.049] | 0.022 [0.007, 0.037] |
+| Rank IC | Ensemble | 0.040 [0.027, 0.053] | 0.030 [0.017, 0.044] |
+| Long-short Sharpe | GRU | 1.23 [0.47, 1.98] | 0.54 [-0.22, 1.29] |
+| Long-short Sharpe | Ensemble | 1.30 [0.59, 1.98] | 0.69 [0.03, 1.37] |
+| Long-short Sharpe minus momentum | Ensemble | 1.41 [0.58, 2.23] | 0.16 [-0.88, 1.14] |
+| Long-only minus equal-weight, yearly return | Ensemble | +12.9% [6.3%, 20.7%] | +11.2% [3.1%, 19.6%] |
+
+  The rank IC interval excludes zero on both periods for both models. The GRU's final long-short Sharpe
+  interval includes zero, and neither model beats the momentum factor with confidence on the final years.
+  The intervals ignore the 228 trials searched.
+- **Costs rose.** The adopted GRU trades 59x a year on the final years (48x before), so its long-short
+  break-even falls from 26 bps to 15 bps. The ensemble's break-even is 17 bps on the final years. The
+  long-only books survive costs up to about 50 bps.
+- `ml2.final` now picks the ensemble as the headline model by dev Sharpe.
 
 ## Limitations
 
@@ -343,4 +360,4 @@ streamlit run app/streamlit_app.py   # v1 page, plus "2 v2 results" in the sideb
 - Run the forward test for a few hundred trading days.
 - Select models on validation long-short Sharpe and rank IC together.
 - Volatility targeting, regime filters, triple-barrier labels, purged k-fold cross-validation.
-- Rerun the bootstrap and cost tables for the round-three config, with intervals that count the trials searched.
+- Bootstrap intervals that count the trials searched, not only the sampling noise.
