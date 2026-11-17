@@ -95,9 +95,11 @@ mostly copies the market.
 Code in `ml2/`. Each day the models rank about 520 stocks and ETFs. The portfolio buys the top decile and
 shorts the bottom decile.
 
-- **Data:** 2.6M rows (today's S&P 500 members and 18 ETFs), 2005 to Nov 2026, 109 features: momentum,
-  volatility, technicals, 52-week range, volume, overnight gap, beta, sector-relative returns, VIX, calendar.
-- **Target:** cross-sectional rank of the 5-day forward return.
+- **Data:** 2.6M rows (today's S&P 500 members and 18 ETFs), 2005 to Nov 2026, 109 features in the first config (133
+  after round three): momentum, volatility, technicals, 52-week range, volume, overnight gap, beta,
+  sector-relative returns, VIX, calendar.
+- **Target:** cross-sectional rank of the 5-day forward return in the first config. Round three switched to a
+  sector-neutral rank.
 - **Models:** ridge, XGBoost (GPU), LightGBM, MLP (GPU), GRU (GPU) and an ensemble that averages their ranks.
 - **Validation:** yearly walk-forward with a 5-day embargo. Dev years 2013-2021 drive every decision. Final
   years 2022-2026 are reported, but no tuning used them (one early round saw them once). Days after
@@ -107,7 +109,8 @@ shorts the bottom decile.
   families and portfolio rules. A change stays only if it adds 0.0015 mean rank IC and wins 5 of 9 folds.
   One change stayed: raw features instead of rank features. All runs are in `results/v2/experiments.csv`.
 
-Results on 2022 to Nov 2026, net of costs. The headline model is the one with the best dev Sharpe.
+Results of the first config on 2022 to Nov 2026, net of costs. The headline model is the one with the best
+dev Sharpe. Round three (below) replaced this config, and its ensemble became the headline model.
 
 | Model | Rank IC | Long-short Sharpe | Long-only Sharpe | Long-only return |
 |---|---|---|---|---|
@@ -172,7 +175,7 @@ transformer), feature groups, targets, horizons, hyperparameters, a rank-IC loss
 - **The MLP adoption failed.** An MLP (trial 258) passed the first gate with a validation IC gain of 0.0025.
   Its dev Sharpe rose from 0.62 to 0.96, but on the pristine tail it fell from 1.68 to 0.24. A gain that small
   over three years is within luck. The Sharpe condition and the larger margin were added to the gate afterwards.
-  The GRU stays the headline model.
+  The GRU stayed the headline model at that point.
 - **Winner's curse:** the trial with the highest tune IC (0.0385, an MLP) validated at only 0.032.
 - **Fixes:** one transformer trial would have run for two hours, so every trial now has a 10-minute budget. A
   restart replayed old random draws until the seed depended on the trial count.
@@ -237,8 +240,8 @@ Tuned GRU, net Sharpe at different one-way costs. The results above use 7 bps. M
 
 ### Forward test (`ml2/forward.py`)
 
-The pristine tail has only 118 days. The forward test logs the headline model's ranking of the latest day
-before the outcome is known, then scores it once prices arrive. Nobody can tune it after the fact.
+The pristine tail has only 118 days. The forward test logs the GRU's ranking of the latest day
+(the `predict` default) before the outcome is known, then scores it once prices arrive. Nobody can tune it after the fact.
 
 ```bash
 python -m ml2.data && python -m ml2.dataset     # refresh prices and features
