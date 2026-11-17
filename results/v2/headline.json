@@ -1,5 +1,5 @@
 {
-  "headline": "gru",
+  "headline": "ensemble",
   "config": {
     "groups": [
       "momentum",
@@ -14,7 +14,7 @@
       "calendar"
     ],
     "cs_mode": "raw",
-    "target": "rank",
+    "target": "sector",
     "horizon": 5,
     "model": "xgb",
     "params": {
@@ -33,24 +33,28 @@
         "model": "gru",
         "groups": [
           "momentum",
-          "volatility",
+          "technical",
           "range",
           "volume",
-          "calendar"
+          "intraday",
+          "sector",
+          "market",
+          "calendar",
+          "breadth"
         ],
-        "cs_mode": "raw",
+        "cs_mode": "both",
         "horizon": 10,
-        "target": "excess",
+        "target": "sector",
         "params": {
-          "hidden": 256,
-          "dropout": 0.47357782463321224,
-          "lr": 0.00146933813034618,
-          "weight_decay": 0.00031022288598033486,
-          "epochs": 4,
-          "batch": 16384,
+          "hidden": 128,
+          "dropout": 0.3639892006013023,
+          "lr": 0.0015408678467393902,
+          "weight_decay": 2.5470981728831744e-06,
+          "epochs": 12,
+          "batch": 8192,
           "loss": "mse",
           "seq_len": 60,
-          "seq_hidden": 64
+          "seq_hidden": 32
         }
       },
       "mlp": {
@@ -59,19 +63,19 @@
           "momentum",
           "range",
           "volume",
-          "intraday",
-          "beta"
+          "calendar",
+          "breadth"
         ],
-        "cs_mode": "raw",
-        "horizon": 5,
-        "target": "excess",
+        "cs_mode": "both",
+        "horizon": 10,
+        "target": "sector",
         "params": {
-          "hidden": 256,
-          "dropout": 0.45239656434116343,
-          "lr": 0.001903610927952562,
-          "weight_decay": 0.00012847787939965054,
-          "epochs": 4,
-          "batch": 16384,
+          "hidden": 128,
+          "dropout": 0.3554312786070201,
+          "lr": 0.002454216508097898,
+          "weight_decay": 1.7966833063247417e-06,
+          "epochs": 10,
+          "batch": 8192,
           "loss": "mse"
         }
       }

@@ -254,6 +254,43 @@ python -m ml2.forward score                     # rank IC and top-minus-bottom r
   hand-computed ranking.
 - Run `predict` every trading day and `score` every week. A few hundred days would settle what 118 cannot.
 
+### Round three: targets, turnover, features, wider search
+
+The tables above come from the first config (commit 7d1d730). Round three changed the dataset (133 features,
+four new groups) and tested five ideas, tuning only on 2013-2018 and validating on 2019-2021. The final years
+were scored once, for one config fixed in commit 3527229. Code: `ml2/phase1.py` to `phase3.py`, `ml2/search.py`.
+
+| Idea | Result |
+|---|---|
+| Sector-neutral target (rank within sector) | Helped XGBoost and LightGBM on both periods. Adopted. |
+| Longer targets (10-day rank, mean rank over 5/10/21 days) | GRU Sharpe 0.96 to about 1.15-1.19 and turnover 57x to 43x on the tune years. Adopted at 10 days. |
+| Residual, volatility-scaled and triple-barrier targets | Worse than the rank target. Dropped. |
+| Turnover penalty in the loss | Never helped the GRU. The MLP at the largest penalty matched the Sharpe at one-seventh of the turnover, but other penalty values were unstable. Left in the search space only. |
+| Four new feature groups, dropping old groups | No change held on both periods. Dropping the market group helped on 2013-2018 and reversed on 2019-2021. Nothing adopted. |
+| Search with the new targets and penalty | 228 trials. Three finalists passed the gate (two GRUs, one MLP). One GRU and the MLP were adopted. |
+
+Net long-short Sharpe, old config against new config:
+
+| Model | Dev old | Dev new | Final old | Final new |
+|---|---|---|---|---|
+| XGBoost | 0.69 | 0.83 | 0.32 | 0.40 |
+| MLP | 0.96 | 1.05 | 0.66 | 0.92 |
+| GRU | 1.26 | 1.23 | 1.00 | 0.54 |
+| Ensemble | 1.04 | 1.30 | 0.66 | 0.69 |
+
+- **The dev gain did not carry over.** The ensemble rose from 1.04 to 1.30 on dev, which includes the years
+  the search tuned on, and from 0.66 to 0.69 on 2022-2026. Its rank IC fell from 0.034 to 0.030.
+- **The GRU got worse out of sample.** The adopted GRU passed the gate on 2019-2021 (Sharpe 1.58) and scored
+  0.54 on the final years. This repeats the MLP failure above: a config picked from many trials loses most of
+  its edge. Only the MLP and the tree models improved, and by amounts inside the bootstrap intervals.
+- **Pristine tail:** the new ensemble scored rank IC 0.036 and long-short Sharpe 1.33, against 1.50 for the
+  universe long-only. 118 days cannot separate it from the old config.
+- **Conclusion:** the sector target and longer horizons are the changes most likely to be real, because they
+  helped on every split for several models. Differences below about 0.2 Sharpe are noise at this sample size.
+  The model choice and the search gains are not established. The forward test is the remaining evidence.
+- **Not rerun:** the bootstrap intervals and cost tables above still describe the first config.
+  `ml2.final` now picks the ensemble as the headline model by dev Sharpe.
+
 ## Limitations
 
 - **Survivorship bias (largest):** v2 trades today's S&P 500 members, which have tended to rise. v1 used two
@@ -304,4 +341,4 @@ streamlit run app/streamlit_app.py   # v1 page, plus "2 v2 results" in the sideb
 - Run the forward test for a few hundred trading days.
 - Select models on validation long-short Sharpe and rank IC together.
 - Volatility targeting, regime filters, triple-barrier labels, purged k-fold cross-validation.
-- A turnover-aware training loss, since turnover decided which model survived costs.
+- Rerun the bootstrap and cost tables for the round-three config, with intervals that count the trials searched.
