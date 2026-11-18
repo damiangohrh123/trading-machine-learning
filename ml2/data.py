@@ -1,5 +1,6 @@
 """Download the S&P 500 + ETF universe and cache wide (date x ticker) price tables."""
 import io
+import time
 
 import pandas as pd
 import requests
@@ -7,6 +8,7 @@ import yfinance as yf
 
 from ml2 import settings as S
 
+EARNINGS = S.DATA / "v2_earnings.parquet"
 WIKI = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 BATCH = 50
 
@@ -43,6 +45,31 @@ def download(refresh: bool = False) -> None:
     print("tickers with no data:", missing)
 
 
+def download_earnings() -> None:
+    """Earnings dates and EPS surprise for every stock, one row per report. Needs about five minutes."""
+    stocks = universe().query("sector != 'ETF'")["ticker"]
+    rows = []
+    for i, t in enumerate(stocks):
+        try:
+            e = yf.Ticker(t).get_earnings_dates(limit=100)
+        except Exception as err:  # Yahoo drops some tickers; they simply have no earnings features
+            print(f"{t}: {err}")
+            continue
+        if e is None or e.empty:
+            continue
+        local = e.index.tz_localize(None)
+        rows.append(pd.DataFrame({"ticker": t, "date": local.normalize(), "after_close": local.hour >= 16,
+                                  "surprise": e["Surprise(%)"].values}))
+        if i % 100 == 99:
+            print(f"earnings {i + 1}/{len(stocks)}", flush=True)
+    pd.concat(rows).to_parquet(EARNINGS)
+    print(f"earnings for {len(rows)} of {len(stocks)} stocks")
+
+
+def earnings() -> pd.DataFrame:
+    return pd.read_parquet(EARNINGS)
+
+
 def drop_incomplete_days(px: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     """Drop days where under half the stocks have a price.
 
@@ -66,3 +93,6 @@ def sectors() -> pd.Series:
 
 if __name__ == "__main__":
     download()
+    # upcoming report dates change, so refresh the earnings table weekly
+    if not EARNINGS.exists() or time.time() - EARNINGS.stat().st_mtime > 7 * 86400:
+        download_earnings()

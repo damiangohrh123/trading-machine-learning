@@ -320,6 +320,47 @@ Net long-short Sharpe, old config against new config:
   stays. This run did not read the final years.
 - `ml2.final` now picks the ensemble as the headline model by dev Sharpe.
 
+### Round four: earnings features (`ml2/phase4.py`)
+
+New data: earnings dates and EPS surprise for 503 stocks from Yahoo Finance, back to 2002 (`ml2.data`
+refreshes them weekly). Two feature groups, 141 features in total:
+
+- `earnings`: trading days since the last report, the last surprise, and the mean of the last four surprises.
+  A report counts from the first close that reflects it, which is the next business day for after-close
+  releases (tested by hand in `tests/test_ml2.py`).
+- `earn_ahead`: days to the next report. It uses the announced date, so it leaks a little if a date moved
+  after the fact. It is a separate group for that reason.
+
+Each group was added to the adopted XGBoost, MLP and GRU configs. Rank IC / long-short Sharpe, tune years
+2013-18, then validation 2019-21. The final years were not read.
+
+| Model | Variant | Tune IC | Tune Sharpe | Valid IC | Valid Sharpe |
+|---|---|---|---|---|---|
+| XGBoost | base | 0.0286 | 0.66 | 0.0422 | 1.17 |
+| XGBoost | + earnings | 0.0331 | 1.01 | 0.0432 | 1.14 |
+| XGBoost | + earn_ahead | 0.0340 | 1.03 | 0.0431 | 1.10 |
+| XGBoost | + both | **0.0362** | **1.19** | **0.0456** | **1.28** |
+| MLP | base | 0.0340 | 0.91 | 0.0397 | 1.34 |
+| MLP | + earnings | 0.0345 | 1.22 | 0.0462 | 1.45 |
+| MLP | + earn_ahead | 0.0336 | 1.31 | 0.0328 | 1.07 |
+| MLP | + both | 0.0344 | 1.38 | 0.0463 | 1.36 |
+| GRU | base | 0.0346 | 1.03 | 0.0419 | 1.57 |
+| GRU | + earnings | 0.0322 | 0.88 | 0.0430 | 1.74 |
+| GRU | + earn_ahead | 0.0367 | 1.65 | 0.0399 | 1.27 |
+| GRU | + both | 0.0362 | 1.54 | **0.0494** | 1.58 |
+
+- **Only "both" held up.** It raised rank IC for all three models in both periods. Each group alone helped
+  in some cells and hurt in others (`earn_ahead` lowered the MLP and GRU on validation).
+- **Gate:** "both" passes `search.gate` for all three models. The validation IC gains are 0.0034 (XGBoost),
+  0.0075 (GRU) and 0.0066 (MLP), each above 0.003. Each model wins 2 of the 3 validation years, and the
+  Sharpe is no lower. The margins are small: the GRU and MLP Sharpe gains are 0.01 and 0.02.
+- **XGBoost on 2013-18 gained the most** (IC 0.0286 to 0.0362), but the gain was smaller on validation, and
+  2021 got worse.
+- **Not adopted yet.** `best_config.json` is unchanged. Adoption needs one look at the final years, which
+  have been seen twice, and would change the forward test's models.
+- **Leakage check:** the `earn_ahead` date is the actual historical date. A live forward test will use the
+  date known at the time, so it is the cleaner check.
+
 ## Limitations
 
 - **Survivorship bias (largest):** v2 trades today's S&P 500 members, which have tended to rise. v1 used two

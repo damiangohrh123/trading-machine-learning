@@ -86,7 +86,7 @@ class Dataset:
 
 def build() -> Dataset:
     px = data.load()
-    wide, close = features.compute_wide(px, data.sectors())
+    wide, close = features.compute_wide(px, data.sectors(), data.earnings())
     for group, cols in features.GROUPS.items():
         if group not in features.SHARED:
             for n in cols:

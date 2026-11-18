@@ -63,10 +63,28 @@ def test_v2_features_do_not_use_future_data():
     for k in ("close", "open", "high", "low"):
         px2[k].loc[idx > cut] *= 1.7  # change only the future
     px2["volume"].loc[idx > cut] *= 4
-    a, _ = features.compute_wide(px, sector)
-    b, _ = features.compute_wide(px2, sector)
+    events = pd.DataFrame({"ticker": ["A", "A"], "date": pd.to_datetime(["2018-03-01", "2019-01-10"]),
+                           "after_close": [True, False], "surprise": [5.0, 8.0]})
+    a, _ = features.compute_wide(px, sector, events)
+    b, _ = features.compute_wide(px2, sector, events)
     for name in a:  # every feature up to the cut must be identical
         pd.testing.assert_frame_equal(a[name].loc[:cut], b[name].loc[:cut], check_exact=False, rtol=1e-4, atol=1e-6)
+
+
+def test_earnings_features_count_from_the_first_close_that_reflects_the_report():
+    dates = pd.bdate_range("2018-02-26", periods=12)
+    events = pd.DataFrame({"ticker": ["A", "A"], "date": pd.to_datetime(["2018-03-01", "2018-03-08"]),
+                           "after_close": [True, False], "surprise": [5.0, -80.0]})
+    f = features.earnings_wide(events, dates, ["A", "B"])
+    day = lambda s, n: f[n].loc[s, "A"]  # noqa: E731
+    cap = features.EARN_CAP
+    assert day("2018-03-01", "days_since_earn") == cap and day("2018-03-01", "last_surprise") == 0  # after close
+    assert day("2018-03-02", "days_since_earn") == 0 and day("2018-03-02", "last_surprise") == 0.5
+    assert day("2018-03-06", "days_since_earn") == 2
+    assert day("2018-02-28", "days_to_earn") == 2                       # next close that reflects it is 03-02
+    assert day("2018-03-08", "last_surprise") == -5.0                   # before-open report counts the same day, clipped
+    assert abs(day("2018-03-08", "surprise_mean_4") - (-2.25)) < 1e-6   # mean of 0.5 and -5.0
+    assert (f["days_since_earn"]["B"] == cap).all()                     # a stock with no events keeps the neutral value
 
 
 def test_folds_respect_embargo_and_test_year(monkeypatch):

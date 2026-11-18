@@ -20,9 +20,39 @@ GROUPS = {
     "volvol": ["vol_of_vol_21", "vol_trend_126", "autocorr_21"],
     "liquidity": ["dvol_ratio_126", "vol_chg_63"],
     "breadth": ["disp_1", "disp_21", "breadth_1", "breadth_sma50", "spy_dd_252", "spy_above_sma200"],
+    "earnings": ["days_since_earn", "last_surprise", "surprise_mean_4"],
+    "earn_ahead": ["days_to_earn"],  # uses the announced date of the next report, kept apart in case it leaks
 }
 SHARED = ("market", "calendar", "breadth")  # same value for every ticker on a date, so no cross-sectional rank
 NEW_GROUPS = ("residual", "volvol", "liquidity", "breadth")
+EARN_GROUPS = ("earnings", "earn_ahead")
+EARN_CAP = 126  # business days; also the value for a stock with no report before or after
+
+
+def earnings_wide(events: pd.DataFrame, dates: pd.DatetimeIndex, stocks: list[str]) -> dict[str, pd.DataFrame]:
+    """Earnings features per date and stock. A report counts from the first close that reflects it:
+    the same day if released before the close, the next business day if released after."""
+    day = dates.values.astype("datetime64[D]")
+    out = {n: np.full((len(dates), len(stocks)), v, dtype="float32")
+           for n, v in (("days_since_earn", EARN_CAP), ("days_to_earn", EARN_CAP), ("last_surprise", 0), ("surprise_mean_4", 0))}
+    by_ticker = {t: g for t, g in events.groupby("ticker")}
+    for j, t in enumerate(stocks):
+        if t not in by_ticker:
+            continue
+        e = by_ticker[t].sort_values("date")
+        d = e["date"].values.astype("datetime64[D]")
+        react = np.where(e["after_close"].values, np.busday_offset(d, 1, roll="backward"),
+                         np.busday_offset(d, 0, roll="forward"))
+        keep = np.r_[True, np.diff(react) > 0]  # one report per reaction day
+        react, sur = react[keep], np.clip(e["surprise"].fillna(0).values[keep], -50, 50) / 10
+        mean4 = np.array([sur[max(0, k - 3):k + 1].mean() for k in range(len(sur))])
+        k = np.searchsorted(react, day, side="right") - 1          # last report reflected by each close
+        seen = k >= 0
+        out["days_since_earn"][seen, j] = np.minimum(np.busday_count(react[k[seen]], day[seen]), EARN_CAP)
+        out["last_surprise"][seen, j], out["surprise_mean_4"][seen, j] = sur[k[seen]], mean4[k[seen]]
+        nxt = k + 1 < len(react)
+        out["days_to_earn"][nxt, j] = np.minimum(np.busday_count(day[nxt], react[k[nxt] + 1]), EARN_CAP)
+    return {n: pd.DataFrame(v, index=dates, columns=stocks) for n, v in out.items()}
 
 
 def _rsi(close: pd.DataFrame, n: int = 14) -> pd.DataFrame:
@@ -32,7 +62,7 @@ def _rsi(close: pd.DataFrame, n: int = 14) -> pd.DataFrame:
     return 100 - 100 / (1 + up / down.replace(0, np.nan))
 
 
-def compute_wide(px: dict[str, pd.DataFrame], sector: pd.Series) -> tuple[dict, pd.DataFrame]:
+def compute_wide(px: dict[str, pd.DataFrame], sector: pd.Series, events: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
     """Return ({feature: date x ticker frame}, close frame of tradable tickers)."""
     vix = px["close"]["^VIX"]
     stocks = [t for t in px["close"].columns if t != "^VIX"]
@@ -121,4 +151,5 @@ def compute_wide(px: dict[str, pd.DataFrame], sector: pd.Series) -> tuple[dict, 
     f["spy_above_sma200"] = shared((spy_c > spy_c.rolling(200).mean()).astype(float))
     f["dow"] = shared(pd.Series(c.index.day_of_week, index=c.index).astype("float32"))
     f["month"] = shared(pd.Series(c.index.month, index=c.index).astype("float32"))
+    f.update(earnings_wide(events, c.index, stocks))
     return {k: v_.astype("float32") for k, v_ in f.items()}, c
