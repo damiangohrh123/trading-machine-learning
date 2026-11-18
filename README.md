@@ -249,6 +249,9 @@ python -m ml2.forward predict                   # train on all labelled days, ra
 python -m ml2.forward score                     # rank IC and top-minus-bottom return per finished day
 ```
 
+- `predict all` logs ridge, XGBoost, LightGBM, MLP, GRU and the ensemble. It runs daily from 2026-11-16, so
+  earlier days hold the GRU only. The dashboard's forward tab shows each model's rank IC and top-minus-bottom
+  return with block-bootstrap intervals.
 - Live predictions go to `results/forward/`. `predict <model> <YYYY-MM-DD>` replays a past day into
   `results/forward/replay/`, and the scorer marks those separately.
 - First entry: the GRU's ranking of the 2026-11-12 close (52 longs, 51 shorts). Its 5-day outcome is known

@@ -1,7 +1,7 @@
 """Forward test: log predictions before the outcome is known, then score them once prices arrive.
 
     python -m ml2.data && python -m ml2.dataset      # refresh prices and features first
-    python -m ml2.forward predict [model] [as_of]    # model defaults to the headline gru
+    python -m ml2.forward predict [model] [as_of]    # model defaults to gru; 'all' logs every member + ensemble
     python -m ml2.forward score                      # score every logged prediction whose outcome is known
 
 A live prediction (no as_of) trains on everything labelled so far and ranks the latest day. Giving as_of
@@ -14,18 +14,16 @@ import numpy as np
 import pandas as pd
 
 from ml2 import dataset, models, settings as S
-from ml2.final import member_cfg
+from ml2.final import ENSEMBLE_OF, member_cfg
 
 OUT = S.RESULTS.parent / "forward"
 LOG = OUT / "forward_log.csv"
 FILES = "predictions_*.csv"
 
 
-def predict(model: str = "gru", as_of: str | None = None) -> None:
-    ds = dataset.load()
-    best = json.loads((S.RESULTS / "best_config.json").read_text())
+def member_scores(ds, best: dict, model: str, t_pred: int) -> np.ndarray:
+    """Train one model on every day labelled before t_pred and score the stocks on day t_pred."""
     cfg = member_cfg(best, model)
-    t_pred = int(ds.t.max()) if as_of is None else ds.dates.get_loc(pd.Timestamp(as_of))
     X = ds.matrix(ds.select(cfg["groups"], cfg["cs_mode"]))
     y = ds.target(cfg["target"], cfg["horizon"])
     # train only on rows whose label window closed before the prediction day, with the usual embargo
@@ -34,16 +32,29 @@ def predict(model: str = "gru", as_of: str | None = None) -> None:
     params = dict(cfg["params"])
     assert not params.pop("recency_halflife", 0), "the forward test does not support recency weighting"
     ctx = {"ds": ds, "tr": train, "te": test, "target": cfg["target"], "weight": None, "deadline": None}
-    score = models.fit_predict(cfg["model"], params, X[train], y[train], X[test], ctx)
-    pct = pd.Series(score).rank(pct=True).values
-    out = pd.DataFrame({"date": ds.dates[t_pred].date(), "ticker": ds.tickers[ds.s[test]], "score": score,
-                        "pct": pct, "side": np.where(pct > 0.9, "long", np.where(pct <= 0.1, "short", "none")),
-                        "model": model})
+    return models.fit_predict(cfg["model"], params, X[train], y[train], X[test], ctx)
+
+
+def predict(model: str = "gru", as_of: str | None = None) -> None:
+    """Log one model's ranking, or every member plus the ensemble with model 'all'."""
+    ds = dataset.load()
+    best = json.loads((S.RESULTS / "best_config.json").read_text())
+    t_pred = int(ds.t.max()) if as_of is None else ds.dates.get_loc(pd.Timestamp(as_of))
+    tickers = ds.tickers[ds.s[np.flatnonzero(ds.t == t_pred)]]
+    names = ["ridge"] + ENSEMBLE_OF if model == "all" else [model]
+    scores = {m: member_scores(ds, best, m, t_pred) for m in names}
+    if model == "all":  # same rule as ml2.final.ensemble: average of the members' cross-sectional ranks
+        scores["ensemble"] = sum(pd.Series(scores[m]).rank(pct=True).values for m in ENSEMBLE_OF) / len(ENSEMBLE_OF)
     folder = OUT if as_of is None else OUT / "replay"
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"predictions_{ds.dates[t_pred].date()}_{model}.csv"
-    out.to_csv(path, index=False)
-    print(f"saved {path.relative_to(S.ROOT)}: {(out.side == 'long').sum()} long, {(out.side == 'short').sum()} short")
+    for name, score in scores.items():
+        pct = pd.Series(score).rank(pct=True).values
+        out = pd.DataFrame({"date": ds.dates[t_pred].date(), "ticker": tickers, "score": score, "pct": pct,
+                            "side": np.where(pct > 0.9, "long", np.where(pct <= 0.1, "short", "none")),
+                            "model": name})
+        path = folder / f"predictions_{ds.dates[t_pred].date()}_{name}.csv"
+        out.to_csv(path, index=False)
+        print(f"saved {path.relative_to(S.ROOT)}: {(out.side == 'long').sum()} long, {(out.side == 'short').sum()} short")
 
 
 def realized(pred: pd.Series, fwd: pd.Series, frac: float = 0.1) -> dict:

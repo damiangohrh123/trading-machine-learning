@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -23,9 +24,9 @@ def table(name: str, caption: str) -> pd.DataFrame:
 
 
 with final:
-    table("final_metrics.csv", "2022 to Nov 2026, net of costs, base decile book. The GRU is the headline model.")
+    table("final_metrics.csv", "2022 to Nov 2026, net of costs, base decile book. The ensemble is the headline model.")
     st.image(str(R / "final_equity.png"))
-    table("dev_metrics.csv", "Dev 2013-2021. Includes years the search tuned on, so it overstates the GRU.")
+    table("dev_metrics.csv", "Dev 2013-2021. Includes years the search tuned on, so it overstates every model.")
 
 with tail:
     table("pristine_metrics.csv", "2026-05-23 onward: days no earlier decision saw. About 118 trading days, so "
@@ -66,8 +67,29 @@ with search:
 with forward:
     log = FORWARD / "forward_log.csv"
     files = sorted(FORWARD.glob("predictions_*.csv"))
-    st.write(f"{len(files)} live prediction file(s) logged: " + ", ".join(f.stem.removeprefix("predictions_") for f in files))
-    if log.exists():
-        st.dataframe(pd.read_csv(log), width="stretch")
+    days = sorted({f.stem.split("_")[1] for f in files})
+    st.write(f"{len(files)} live prediction file(s) over {len(days)} day(s), latest {days[-1] if days else 'none'}.")
+    live = pd.read_csv(log) if log.exists() else pd.DataFrame()
+    live = live[live["file"].str.startswith("live/")] if len(live) else live
+    if live.empty:
+        st.info("No outcomes scored yet. A prediction is scored once its 5 trading days have passed.")
     else:
-        st.info("No outcomes scored yet. Run `python -m ml2.forward score` once 5 trading days have passed.")
+        st.caption("Live days only (replays excluded). Intervals are 95% block bootstraps with 5-day blocks, since "
+                   "5-day outcomes of neighbouring days overlap. They are wide until a few hundred days exist.")
+        rng, rows = np.random.default_rng(0), []
+        for name, g in live.sort_values("date").groupby("model"):
+            row = {"model": name, "days": len(g)}
+            for col in ("rank_ic", "long_minus_short"):
+                x = g[col].dropna().to_numpy()
+                n_blocks = -(-len(x) // 5)
+                starts = rng.integers(0, max(len(x) - 4, 1), (2000, n_blocks))
+                means = np.array([np.concatenate([x[s:s + 5] for s in st_])[:len(x)].mean() for st_ in starts])
+                row[col] = x.mean()
+                row[col + "_low"], row[col + "_high"] = np.percentile(means, [2.5, 97.5])
+            rows.append(row)
+        st.dataframe(pd.DataFrame(rows).set_index("model").style.format("{:.4f}", subset=pd.IndexSlice[:, "rank_ic":]),
+                     width="stretch")
+        cum = live.pivot_table(index="date", columns="model", values="long_minus_short").sort_index().fillna(0).cumsum()
+        st.caption("Cumulative top-minus-bottom 5-day return, summed over days (overlapping, so not a tradable curve).")
+        st.line_chart(cum)
+        st.dataframe(live, width="stretch")
