@@ -14,17 +14,21 @@ import numpy as np
 import pandas as pd
 
 from ml2 import dataset, models, settings as S
+from ml2.features import EARN_GROUPS
 from ml2.final import ENSEMBLE_OF, member_cfg
 
 OUT = S.RESULTS.parent / "forward"
 LOG = OUT / "forward_log.csv"
 FILES = "predictions_*.csv"
+EARN_MODELS = ("xgb", "mlp", "gru")  # the models round four tested with the earnings groups; LightGBM stays as is
 
 
-def member_scores(ds, best: dict, model: str, t_pred: int) -> np.ndarray:
-    """Train one model on every day labelled before t_pred and score the stocks on day t_pred."""
+def member_scores(ds, best: dict, model: str, t_pred: int, extra: tuple = ()) -> np.ndarray:
+    """Train one model on every day labelled before t_pred and score the stocks on day t_pred.
+
+    extra adds feature groups to the adopted config, which is how the earnings variants are logged."""
     cfg = member_cfg(best, model)
-    X = ds.matrix(ds.select(cfg["groups"], cfg["cs_mode"]))
+    X = ds.matrix(ds.select(cfg["groups"] + list(extra), cfg["cs_mode"]))
     y = ds.target(cfg["target"], cfg["horizon"])
     # train only on rows whose label window closed before the prediction day, with the usual embargo
     train = np.flatnonzero((ds.t <= t_pred - max(S.EMBARGO, cfg["horizon"]) - 1) & ~np.isnan(y))
@@ -45,6 +49,12 @@ def predict(model: str = "gru", as_of: str | None = None) -> None:
     scores = {m: member_scores(ds, best, m, t_pred) for m in names}
     if model == "all":  # same rule as ml2.final.ensemble: average of the members' cross-sectional ranks
         scores["ensemble"] = sum(pd.Series(scores[m]).rank(pct=True).values for m in ENSEMBLE_OF) / len(ENSEMBLE_OF)
+        # earnings variants (round four) are logged next to the adopted models, not instead of them
+        for m in EARN_MODELS:
+            scores[m + "_earn"] = member_scores(ds, best, m, t_pred, EARN_GROUPS)
+        scores["ensemble_earn"] = sum(
+            pd.Series(scores[m + "_earn" if m in EARN_MODELS else m]).rank(pct=True).values
+            for m in ENSEMBLE_OF) / len(ENSEMBLE_OF)
     folder = OUT if as_of is None else OUT / "replay"
     folder.mkdir(parents=True, exist_ok=True)
     for name, score in scores.items():
